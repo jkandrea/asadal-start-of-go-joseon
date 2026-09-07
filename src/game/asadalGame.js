@@ -108,6 +108,8 @@ const createPlayerState = () => ({
   level: 1,
   reputation: 0,
   kills: 0,
+  alliedTribe: '쥐',
+  hostileTribe: '호랑이',
   isInvulnerable: false,
   attackTimer: 0,
   attackFlash: 0,
@@ -164,8 +166,8 @@ function dispatchHud(state, stage, currentTribe) {
       level: state.level,
       stage,
       currentTribe,
-      alliedTribe: tribeNames[alliedTribeIndex] ?? '쥐',
-      hostileTribe: tribeNames[hostileTribeIndex] ?? '호랑이',
+      alliedTribe: state.alliedTribe,
+      hostileTribe: state.hostileTribe,
       reputation: state.reputation,
       totalKills: 0,
       gameOver: state.health <= 0,
@@ -246,10 +248,19 @@ function showDefaultHud(stage, currentTribe, player) {
 function bootAsadalGame(container) {
   const config = {
     type: Phaser.AUTO,
-    width: container.clientWidth || 1280,
-    height: container.clientHeight || 720,
+    width: container.clientWidth || 540,
+    height: container.clientHeight || 960,
     backgroundColor: '#090705',
     parent: container,
+    render: {
+      antialias: true,
+      roundPixels: false,
+      powerPreference: 'high-performance',
+    },
+    scale: {
+      mode: Phaser.Scale.RESIZE,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+    },
     physics: {
       default: 'arcade',
     },
@@ -310,6 +321,8 @@ function bootAsadalGame(container) {
         playerBody.body.setCollideWorldBounds(true);
         playerBody.body.setDrag(800);
         playerBody.setDepth(10);
+        scene.cameras.main.setBounds(0, 0, world.width, world.height);
+        scene.cameras.main.startFollow(playerBody, true, 0.12, 0.12);
 
         let touchInput = { x: 0, y: 0 };
         let keyboardInput = { up: false, down: false, left: false, right: false };
@@ -333,14 +346,14 @@ function bootAsadalGame(container) {
           fill: '#f6e5b0',
           fontStyle: 'bold',
         });
-        stageLabel.setDepth(30);
+        stageLabel.setDepth(30).setScrollFactor(0).setVisible(false);
 
         const hudText = scene.add.text(30, 52, '체력 100 / 100', {
           fontSize: '16px',
           fontFamily: 'Segoe UI, sans-serif',
           fill: '#e5d5ae',
         });
-        hudText.setDepth(30);
+        hudText.setDepth(30).setScrollFactor(0).setVisible(false);
 
         const bossText = scene.add.text(0, 0, '', {
           fontSize: '22px',
@@ -348,14 +361,24 @@ function bootAsadalGame(container) {
           fill: '#ffbd82',
           fontStyle: 'bold',
         });
-        bossText.setDepth(30);
+        bossText.setDepth(30).setScrollFactor(0).setOrigin(0.5, 0);
 
-        const stageObjectiveText = scene.add.text(30, 78, '목표: 적 8마리 처치', {
+        const stageObjectiveText = scene.add.text(0, 0, '목표: 적 8마리 처치', {
           fontSize: '15px',
           fontFamily: 'Segoe UI, sans-serif',
           fill: '#e9dbc0',
+          align: 'center',
         });
-        stageObjectiveText.setDepth(30);
+        stageObjectiveText.setDepth(30).setScrollFactor(0).setOrigin(0.5, 0);
+
+        const positionCanvasHud = (gameSize = scene.scale.gameSize) => {
+          const viewportWidth = gameSize?.width || scene.scale.width;
+          const textWidth = Math.max(220, viewportWidth - 28);
+          stageObjectiveText.setPosition(viewportWidth / 2, 66).setWordWrapWidth(textWidth);
+          bossText.setPosition(viewportWidth / 2, 92).setWordWrapWidth(textWidth);
+        };
+        positionCanvasHud();
+        scene.scale.on('resize', positionCanvasHud);
 
         let stageGoal = 8;
         let nextStageQueued = false;
@@ -402,7 +425,6 @@ function bootAsadalGame(container) {
           updateStageGoalText();
           showDefaultHud(stage, currentTribe, player);
           bossText.setText(bossSpawned ? `${currentTribe} 보스 등장!` : `${currentTribe} 전투 시작`);
-          bossText.setPosition(240, 20);
           bossText.setVisible(true);
           scene.time.delayedCall(1800, () => bossText.setVisible(false));
 
@@ -928,23 +950,32 @@ function bootAsadalGame(container) {
           if (key === 'd' || key === 'arrowright') keyboardInput.right = isDown;
         };
 
-        window.addEventListener('keydown', (event) => onKeyChange(event, true));
-        window.addEventListener('keyup', (event) => onKeyChange(event, false));
-        window.addEventListener('asadal:input', (event) => {
+        const onKeyDown = (event) => onKeyChange(event, true);
+        const onKeyUp = (event) => onKeyChange(event, false);
+        const resetMovementInput = () => {
+          touchInput = { x: 0, y: 0 };
+          keyboardInput = { up: false, down: false, left: false, right: false };
+        };
+        const onVisibilityChange = () => {
+          if (document.hidden) resetMovementInput();
+        };
+        const onTouchInput = (event) => {
           touchInput = {
             x: clamp(Number(event.detail?.x || 0), -1, 1),
             y: clamp(Number(event.detail?.y || 0), -1, 1),
           };
-        });
+        };
 
-        window.addEventListener('asadal:tribeSetup', (event) => {
+        const onTribeSetup = (event) => {
           const { alliedTribe, hostileTribe } = event.detail || {};
           alliedTribeIndex = tribeNames.indexOf(alliedTribe || tribeNames[0]);
           hostileTribeIndex = tribeNames.indexOf(hostileTribe || tribeNames[1]);
           resolveTribeIndexes();
-        });
+          player.alliedTribe = tribeNames[alliedTribeIndex];
+          player.hostileTribe = tribeNames[hostileTribeIndex];
+        };
 
-        window.addEventListener('asadal:startRun', () => {
+        const onStartRun = () => {
           worldTime = 0;
           player.trainingPoints = 5;
           player.trainingLevels = {
@@ -967,6 +998,8 @@ function bootAsadalGame(container) {
             hostileTribeIndex = shuffled[1] ?? 1;
           }
           currentTribeIndex = alliedTribeIndex;
+          player.alliedTribe = tribeNames[alliedTribeIndex];
+          player.hostileTribe = tribeNames[hostileTribeIndex];
           clearedFinalBoss = false;
           applyAlliedSetupBonus();
           window.__asadalTribeIndex = currentTribeIndex;
@@ -1001,20 +1034,36 @@ function bootAsadalGame(container) {
             },
           }));
           emitTrainingChoices(player);
-        });
+        };
 
-        window.addEventListener('asadal:chooseSkill', (event) => {
+        const onChooseSkill = (event) => {
           const { id, source = 'map' } = event.detail || {};
           if (source === 'training') {
             applyPermanentTraining(id);
             return;
           }
           applySkill(id);
-        });
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        window.addEventListener('keyup', onKeyUp);
+        window.addEventListener('blur', resetMovementInput);
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        window.addEventListener('asadal:input', onTouchInput);
+        window.addEventListener('asadal:tribeSetup', onTribeSetup);
+        window.addEventListener('asadal:startRun', onStartRun);
+        window.addEventListener('asadal:chooseSkill', onChooseSkill);
 
         scene.events.on('shutdown', () => {
-          window.removeEventListener('keydown', onKeyChange);
-          window.removeEventListener('keyup', onKeyChange);
+          scene.scale.off('resize', positionCanvasHud);
+          window.removeEventListener('keydown', onKeyDown);
+          window.removeEventListener('keyup', onKeyUp);
+          window.removeEventListener('blur', resetMovementInput);
+          document.removeEventListener('visibilitychange', onVisibilityChange);
+          window.removeEventListener('asadal:input', onTouchInput);
+          window.removeEventListener('asadal:tribeSetup', onTribeSetup);
+          window.removeEventListener('asadal:startRun', onStartRun);
+          window.removeEventListener('asadal:chooseSkill', onChooseSkill);
         });
 
         showDefaultHud(stage, tribeNames[currentTribeIndex] + ' 부족', player);

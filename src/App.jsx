@@ -152,49 +152,61 @@ function App() {
 
   return (
     <div className="app-shell">
-      <header className="hud-bar">
-        <div className="hud-pill">
-          <span className="label">체력</span>
-          <strong>
-            {hud.health}/{hud.maxHealth}
-          </strong>
-        </div>
-        <div className="hud-pill">
-          <span className="label">레벨</span>
-          <strong>{hud.level}</strong>
-        </div>
-        <div className="hud-pill">
-          <span className="label">스테이지</span>
-          <strong>{hud.stage}</strong>
-        </div>
-        <div className="hud-pill">
-          <span className="label">악명</span>
-          <strong>{hud.reputation}</strong>
-        </div>
-        <div className="hud-pill full">
-          <span className="label">현대부족</span>
-          <strong>{hud.currentTribe}</strong>
-        </div>
-      </header>
-
       <div className="game-panel">
         <div ref={containerRef} className="game-root" />
 
-        {!showIntro && !showTutorial && !hud.gameOver && (
+        {!showIntro && !showTutorial && (
+          <header className="hud-bar" aria-label="게임 상태">
+            <div className="hud-pill health-pill">
+              <span className="label">체력</span>
+              <strong>
+                {Math.ceil(hud.health)} / {Math.ceil(hud.maxHealth)}
+              </strong>
+            </div>
+            <div className="hud-pill">
+              <span className="label">레벨</span>
+              <strong>{hud.level}</strong>
+            </div>
+            <div className="hud-pill">
+              <span className="label">스테이지</span>
+              <strong>{hud.stage}</strong>
+            </div>
+            <div className="hud-pill">
+              <span className="label">악명</span>
+              <strong>{hud.reputation}</strong>
+            </div>
+            <div className="hud-pill tribe-pill">
+              <span className="label">현재 부족</span>
+              <strong>{hud.currentTribe}</strong>
+            </div>
+          </header>
+        )}
+
+        {!showIntro && !showTutorial && !hud.gameOver && !hud.win && choices.length === 0 && (
           <div
             ref={joystickRef}
             className="virtual-joystick"
+            role="application"
+            aria-label="이동 조이스틱"
             onPointerDown={(event) => {
               event.preventDefault();
+              event.currentTarget.setPointerCapture(event.pointerId);
               updateStickFromPointer(event.clientX, event.clientY);
             }}
             onPointerMove={(event) => {
-              if (event.pressure > 0 || event.buttons > 0) {
+              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
                 updateStickFromPointer(event.clientX, event.clientY);
               }
             }}
-            onPointerUp={resetStick}
-            onPointerLeave={resetStick}
+            onPointerUp={(event) => {
+              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                event.currentTarget.releasePointerCapture(event.pointerId);
+              }
+              resetStick();
+            }}
+            onPointerLeave={(event) => {
+              if (!event.currentTarget.hasPointerCapture(event.pointerId)) resetStick();
+            }}
             onPointerCancel={resetStick}
           >
             <div className="joystick-base" />
