@@ -91,6 +91,37 @@ const tribeTraits = {
   닭: { speed: 0, damage: 5, maxHealth: 0, attackRange: 0, heal: 0 },
   개: { speed: 0, damage: 3, maxHealth: 6, attackRange: 0, heal: 0 },
   돼지: { speed: -10, damage: 0, maxHealth: 22, attackRange: 0, heal: 6 },
+  호랑이: { speed: 12, damage: 5, maxHealth: 12, attackRange: 5, heal: 0 },
+};
+
+const enemyArchetypes = {
+  쥐: { texture: 'enemy-rat', width: 72, height: 86, speed: 1.22, health: 0.72, damage: 0.82, range: 12, frequency: 0.023, bob: 3.8, tilt: 4.8, lunge: 10, strike: 'sling', color: 0xaeb1a5 },
+  소: { texture: 'enemy-ox', width: 112, height: 116, speed: 0.7, health: 1.65, damage: 1.35, range: 1, frequency: 0.009, bob: 1.5, tilt: 1.2, lunge: 5, strike: 'blunt', color: 0xb98a54 },
+  토끼: { texture: 'enemy-rabbit', width: 72, height: 100, speed: 1.35, health: 0.76, damage: 0.9, range: 3, frequency: 0.026, bob: 5.5, tilt: 5.5, lunge: 13, strike: 'slash', color: 0xe7ddd1 },
+  용: { texture: 'enemy-dragon', width: 99, height: 112, speed: 0.82, health: 1.3, damage: 1.25, range: 18, frequency: 0.011, bob: 1.3, tilt: 1.4, lunge: 10, strike: 'spear', color: 0xc84f39 },
+  뱀: { texture: 'enemy-snake', width: 76, height: 101, speed: 1.08, health: 0.86, damage: 1.05, range: 8, frequency: 0.017, bob: 2.2, tilt: 6.5, lunge: 12, strike: 'slash', color: 0x5f9b69 },
+  말: { texture: 'enemy-horse', width: 94, height: 108, speed: 1.32, health: 1.02, damage: 1.12, range: 22, frequency: 0.021, bob: 4.4, tilt: 3.2, lunge: 15, strike: 'spear', color: 0xb88761 },
+  양: { texture: 'enemy-sheep', width: 94, height: 110, speed: 0.74, health: 1.5, damage: 0.92, range: 5, frequency: 0.01, bob: 1.2, tilt: 2.4, lunge: 5, strike: 'blunt', color: 0xd8c7a2 },
+  원숭이: { texture: 'enemy-monkey', width: 82, height: 91, speed: 1.3, health: 0.84, damage: 0.94, range: 8, frequency: 0.025, bob: 6.2, tilt: 7.5, lunge: 14, strike: 'blunt', color: 0xb05e42 },
+  닭: { texture: 'enemy-rooster', width: 78, height: 104, speed: 1.12, health: 0.9, damage: 1.22, range: 13, frequency: 0.019, bob: 3.2, tilt: 3.8, lunge: 14, strike: 'slash', color: 0xc93f39 },
+  개: { texture: 'enemy-dog', width: 91, height: 105, speed: 1.18, health: 1.08, damage: 1.08, range: 15, frequency: 0.02, bob: 3.5, tilt: 3.2, lunge: 14, strike: 'spear', color: 0x77675c },
+  돼지: { texture: 'enemy-boar', width: 110, height: 113, speed: 0.68, health: 1.72, damage: 1.42, range: 4, frequency: 0.008, bob: 1.8, tilt: 2.2, lunge: 7, strike: 'slash', color: 0x9b6646 },
+  호랑이: { texture: 'enemy-tiger', width: 105, height: 122, speed: 1.08, health: 1.35, damage: 1.32, range: 22, frequency: 0.016, bob: 2.6, tilt: 2.8, lunge: 16, strike: 'spear', color: 0xe09239 },
+};
+
+const enemyTactics = {
+  쥐: { style: 'ranged', rangeBonus: 82, retreatRange: 92, attackDelay: 1.18, windup: 0.9, projectileSpeed: 250 },
+  소: { style: 'crusher', rangeBonus: 2, attackDelay: 1.35, windup: 1.3, impactScale: 1.35 },
+  토끼: { style: 'flanker', rangeBonus: 6, attackDelay: 0.72, windup: 0.76, orbit: 0.92 },
+  용: { style: 'commander', rangeBonus: 26, attackDelay: 1.08, windup: 1.08, auraRadius: 150 },
+  뱀: { style: 'poison', rangeBonus: 10, attackDelay: 0.9, windup: 0.88, orbit: 0.58 },
+  말: { style: 'charger', rangeBonus: 18, attackDelay: 1.08, windup: 0.9, chargeSpeed: 2.25 },
+  양: { style: 'support', rangeBonus: 18, retreatRange: 76, attackDelay: 1.32, windup: 1.1, auraRadius: 135 },
+  원숭이: { style: 'skirmisher', rangeBonus: 9, retreatRange: 54, attackDelay: 0.7, windup: 0.72, orbit: 1.08 },
+  닭: { style: 'duelist', rangeBonus: 10, attackDelay: 0.62, windup: 0.72, orbit: 0.42 },
+  개: { style: 'formation', rangeBonus: 14, attackDelay: 0.94, windup: 1, formationSpacing: 28 },
+  돼지: { style: 'berserker', rangeBonus: 4, attackDelay: 1.24, windup: 1.18, impactScale: 1.3 },
+  호랑이: { style: 'pouncer', rangeBonus: 22, attackDelay: 0.92, windup: 0.86, chargeSpeed: 2.55 },
 };
 
 const createPlayerState = () => ({
@@ -113,8 +144,14 @@ const createPlayerState = () => ({
   isInvulnerable: false,
   attackTimer: 0,
   attackFlash: 0,
+  attackPoseTimer: 0,
+  hitPoseTimer: 0,
+  facing: 1,
+  runCycleTime: 0,
   healTimer: 0,
   auraTimer: 0,
+  poisonTimer: 0,
+  poisonTickTimer: 0,
   rage: 0,
   trainingPoints: 5,
   trainingLevels: {
@@ -155,6 +192,16 @@ const createEnemyState = (x, y, type = 'raider') => ({
   bossPulseCooldown: 0,
   bossSummonCooldown: 0,
   bossPhase: 1,
+  stridePhase: Math.random() * Math.PI * 2,
+  attackPose: 0,
+  attackHitPending: false,
+  hitPose: 0,
+  knockdownTimer: 0,
+  deathTimer: 0,
+  defeated: false,
+  aiCooldown: Math.random() * 1.5,
+  orbitDirection: Math.random() < 0.5 ? -1 : 1,
+  comboCount: 0,
 });
 
 function dispatchHud(state, stage, currentTribe) {
@@ -265,6 +312,25 @@ function bootAsadalGame(container) {
       default: 'arcade',
     },
     scene: {
+      preload() {
+        this.load.image('ung-warrior', '/assets/ung-bear-warrior.png');
+        this.load.image('ung-run-1', '/assets/ung-run-1.png');
+        this.load.image('ung-run-2', '/assets/ung-run-2.png');
+        this.load.image('ung-run-3', '/assets/ung-run-3.png');
+        this.load.image('ung-run-4', '/assets/ung-run-4.png');
+        this.load.image('ung-attack', '/assets/ung-attack.png');
+        Object.values(enemyArchetypes).forEach(({ texture }) => {
+          this.load.image(texture, `/assets/${texture}.png`);
+          this.load.image(`${texture}-run-1`, `/assets/${texture}-run-1.png`);
+          this.load.image(`${texture}-run-2`, `/assets/${texture}-run-2.png`);
+          this.load.image(`${texture}-attack-1`, `/assets/${texture}-attack-1.png`);
+          this.load.image(`${texture}-attack-2`, `/assets/${texture}-attack-2.png`);
+          this.load.image(`${texture}-hit`, `/assets/${texture}-hit.png`);
+          this.load.image(`${texture}-down`, `/assets/${texture}-down.png`);
+          this.load.image(`${texture}-death`, `/assets/${texture}-death.png`);
+          this.load.image(`${texture}-recover`, `/assets/${texture}-recover.png`);
+        });
+      },
       create() {
         const scene = this;
         const player = createPlayerState();
@@ -276,13 +342,15 @@ function bootAsadalGame(container) {
         let stage = 1;
         let currentTribeIndex = 0;
         let bossSpawned = false;
-        let pendingRestart = false;
         let skillSelectionOpen = false;
+        let runStarted = false;
         let combo = 0;
         let worldTime = 0;
         let clearedFinalBoss = false;
         let alliedTribeIndex = 0;
         let hostileTribeIndex = 0;
+        let currentBattleTribe = tribeNames[0];
+        let stageTribeOrder = tribeNames.slice(0, 5);
 
         const resolveTribeIndexes = () => {
           if (!tribeNames.includes(tribeNames[alliedTribeIndex])) {
@@ -313,16 +381,58 @@ function bootAsadalGame(container) {
           player.tribeBonus = { ...trait };
         };
 
-        const world = scene.add.rectangle(0, 0, 1400, 900, 0x1c140f).setOrigin(0, 0);
+        const world = scene.add.rectangle(0, 0, 1400, 900, 0x17120d).setOrigin(0, 0);
         scene.physics.world.setBounds(0, 0, world.width, world.height);
 
-        const playerBody = scene.add.circle(200, 300, 18, 0xf8d8a0);
+        const ground = scene.add.graphics().setDepth(0);
+        ground.fillStyle(0x241a11, 1).fillRect(0, 0, world.width, world.height);
+        ground.fillStyle(0x352515, 0.7).fillRect(0, 180, world.width, 520);
+        ground.lineStyle(2, 0x6e4b27, 0.22);
+        for (let y = 220; y < 700; y += 92) {
+          ground.beginPath();
+          ground.moveTo(0, y);
+          ground.lineTo(world.width, y + 18);
+          ground.strokePath();
+        }
+        ground.fillStyle(0x0d1713, 1).fillRect(0, 0, world.width, 170);
+        ground.fillStyle(0x101713, 1).fillRect(0, 710, world.width, 190);
+        ground.fillStyle(0x936232, 0.4);
+        for (let index = 0; index < 34; index += 1) {
+          const x = (index * 173 + 47) % world.width;
+          const y = 205 + ((index * 97) % 470);
+          ground.fillEllipse(x, y, 10 + (index % 4) * 5, 5 + (index % 3) * 3);
+        }
+
+        const makeTotem = (x, y, color, scale = 1) => {
+          const totem = scene.add.graphics({ x, y }).setDepth(1);
+          totem.fillStyle(0x080706, 0.35).fillEllipse(0, 18 * scale, 74 * scale, 18 * scale);
+          totem.fillStyle(0x49321d, 1).fillRoundedRect(-7 * scale, -50 * scale, 14 * scale, 68 * scale, 4);
+          totem.fillStyle(color, 1).fillCircle(0, -55 * scale, 19 * scale);
+          totem.fillStyle(0x17100b, 1).fillCircle(-7 * scale, -58 * scale, 3 * scale);
+          totem.fillStyle(0x17100b, 1).fillCircle(7 * scale, -58 * scale, 3 * scale);
+          totem.lineStyle(3 * scale, 0xc19a5b, 0.75).strokeCircle(0, -55 * scale, 13 * scale);
+          return totem;
+        };
+        makeTotem(128, 160, 0x8b623a, 1.1);
+        makeTotem(1170, 735, 0xa85c27, 1.25);
+        makeTotem(720, 120, 0x755137, 0.9);
+
+        const playerBody = scene.add.circle(200, 300, 18, 0xf8d8a0, 0);
         scene.physics.add.existing(playerBody);
         playerBody.body.setCollideWorldBounds(true);
         playerBody.body.setDrag(800);
         playerBody.setDepth(10);
         scene.cameras.main.setBounds(0, 0, world.width, world.height);
         scene.cameras.main.startFollow(playerBody, true, 0.12, 0.12);
+
+        const playerShadow = scene.add.ellipse(playerBody.x, playerBody.y + 19, 54, 17, 0x000000, 0.42).setDepth(7);
+        const playerSprite = scene.add.image(playerBody.x, playerBody.y, 'ung-warrior')
+          .setOrigin(0.5, 0.82)
+          .setDisplaySize(75, 112)
+          .setDepth(10);
+        let playerPose = 'idle';
+        let playerTexture = 'ung-warrior';
+        let lastRunFrame = -1;
 
         let touchInput = { x: 0, y: 0 };
         let keyboardInput = { up: false, down: false, left: false, right: false };
@@ -409,13 +519,122 @@ function bootAsadalGame(container) {
           floatingTexts.push({ text, life: 0.7, y });
         }
 
+        function createEnemyVisual(enemy, variant = 'raider') {
+          const isBoss = enemy.type === 'boss';
+          const archetype = enemyArchetypes[currentBattleTribe] || enemyArchetypes.쥐;
+          const tactic = enemyTactics[currentBattleTribe] || enemyTactics.쥐;
+          const sizeScale = isBoss ? 1.34 : variant === 'support' ? 0.9 : 1;
+          enemy.tribe = currentBattleTribe;
+          enemy.archetype = archetype;
+          enemy.tactic = tactic;
+          enemy.speed *= archetype.speed;
+          enemy.health *= archetype.health;
+          enemy.maxHealth *= archetype.health;
+          enemy.damage *= archetype.damage;
+          enemy.attackRange += archetype.range + tactic.rangeBonus;
+          enemy.attackDelay *= tactic.attackDelay;
+          enemy.visualWidth = archetype.width * sizeScale;
+          enemy.visualHeight = archetype.height * sizeScale;
+          const sprite = scene.add.image(enemy.x, enemy.y, archetype.texture)
+            .setOrigin(0.5, 0.8)
+            .setDisplaySize(enemy.visualWidth, enemy.visualHeight)
+            .setDepth(isBoss ? 6 : 5);
+          if (isBoss) sprite.setTint(0xffd1bc);
+          if (variant === 'support') sprite.setTint(0xe7c9a2);
+          enemy.sprite = sprite;
+          enemy.baseTint = isBoss ? 0xffd1bc : variant === 'support' ? 0xe7c9a2 : 0xffffff;
+          enemy.shadow = scene.add.ellipse(
+            enemy.x,
+            enemy.y + enemy.visualHeight * 0.16,
+            enemy.visualWidth * 0.56,
+            enemy.visualHeight * 0.14,
+            0x000000,
+            0.38,
+          ).setDepth(3);
+          enemy.attackRing = scene.add.circle(
+            enemy.x,
+            enemy.y,
+            enemy.attackRange + enemy.radius,
+            archetype.color,
+            isBoss ? 0.12 : 0.04,
+          ).setDepth(2);
+          return enemy;
+        }
+
+        function destroyEnemyVisual(enemy) {
+          if (enemy.sprite) enemy.sprite.destroy();
+          if (enemy.shadow) enemy.shadow.destroy();
+          if (enemy.attackRing) enemy.attackRing.destroy();
+        }
+
+        function spawnEnemyWeaponMotion(enemy, angle) {
+          const archetype = enemy.archetype || enemyArchetypes.쥐;
+          const reach = 34 + archetype.range * 0.75 + (enemy.type === 'boss' ? 16 : 0);
+          const color = archetype.color;
+
+          if (archetype.strike === 'slash') {
+            const arc = scene.add.graphics({ x: enemy.x, y: enemy.y - 3 });
+            arc.lineStyle(enemy.type === 'boss' ? 7 : 5, color, 0.86);
+            arc.beginPath();
+            arc.arc(0, 0, reach, -0.9, 0.72, false);
+            arc.strokePath();
+            arc.setRotation(angle).setDepth(16);
+            scene.tweens.add({
+              targets: arc,
+              scaleX: 1.18,
+              scaleY: 1.18,
+              alpha: 0,
+              duration: 150,
+              onComplete: () => arc.destroy(),
+            });
+            return;
+          }
+
+          const strike = scene.add.line(
+            0,
+            0,
+            enemy.x,
+            enemy.y - 5,
+            enemy.x + Math.cos(angle) * reach,
+            enemy.y - 5 + Math.sin(angle) * reach,
+            color,
+            archetype.strike === 'sling' ? 0.66 : 0.88,
+          );
+          strike.setLineWidth(archetype.strike === 'blunt' ? 8 : enemy.type === 'boss' ? 6 : 4);
+          strike.setDepth(16);
+          scene.tweens.add({
+            targets: strike,
+            alpha: 0,
+            duration: archetype.strike === 'blunt' ? 190 : 125,
+            onComplete: () => strike.destroy(),
+          });
+
+          if (archetype.strike === 'blunt') {
+            const impact = scene.add.circle(
+              enemy.x + Math.cos(angle) * reach,
+              enemy.y + Math.sin(angle) * reach,
+              enemy.type === 'boss' ? 18 : 11,
+              color,
+              0.28,
+            ).setDepth(15);
+            scene.tweens.add({
+              targets: impact,
+              scale: 2.2,
+              alpha: 0,
+              duration: 210,
+              onComplete: () => impact.destroy(),
+            });
+          }
+        }
+
         function setStageState(nextStage) {
           stage = nextStage;
-          currentTribeIndex = (stage - 1) % tribeNames.length;
-          window.__asadalTribeIndex = currentTribeIndex;
-          const currentTribeName = tribeNames[currentTribeIndex];
-          const currentTribe = currentTribeName + ' 부족';
           bossSpawned = stage % 3 === 0;
+          const currentTribeName = stage >= 6 ? '호랑이' : stageTribeOrder[(stage - 1) % stageTribeOrder.length];
+          currentTribeIndex = Math.max(0, tribeNames.indexOf(currentTribeName));
+          window.__asadalTribeIndex = currentTribeIndex;
+          const currentTribe = currentTribeName + ' 부족';
+          currentBattleTribe = currentTribeName;
           stageLabel.setText(currentTribe);
           stageGoal = bossSpawned ? 1 : Math.max(5, stage * 4 + 2);
           player.kills = 0;
@@ -429,22 +648,26 @@ function bootAsadalGame(container) {
           scene.time.delayedCall(1800, () => bossText.setVisible(false));
 
           enemies.forEach((enemy) => {
-            if (enemy.sprite) enemy.sprite.destroy();
-            if (enemy.attackRing) enemy.attackRing.destroy();
+            destroyEnemyVisual(enemy);
           });
           enemies.splice(0, enemies.length);
 
           if (bossSpawned) {
             const boss = createEnemyState(700, 360, 'boss');
-            const sprite = scene.add.circle(boss.x, boss.y, boss.radius, 0xff7e50);
-            sprite.setDepth(4);
-            boss.sprite = sprite;
-            boss.attackRing = scene.add.circle(boss.x, boss.y, boss.attackRange + boss.radius, 0xff4d4d, 0.15);
-            boss.attackRing.setDepth(1);
-            enemies.push(boss);
+            enemies.push(createEnemyVisual(boss));
           } else {
             createEnemyBurst(650, 260, false);
             createEnemyBurst(760, 420, false);
+          }
+
+          if (stage === 6) {
+            skillSelectionOpen = true;
+            window.dispatchEvent(new CustomEvent('asadal:story', {
+              detail: {
+                id: 'tiger-truth',
+                route: [...stageTribeOrder, '호랑이'],
+              },
+            }));
           }
         }
 
@@ -459,8 +682,7 @@ function bootAsadalGame(container) {
           }
 
           enemies.forEach((enemy) => {
-            if (enemy.sprite) enemy.sprite.destroy();
-            if (enemy.attackRing) enemy.attackRing.destroy();
+            destroyEnemyVisual(enemy);
           });
           enemies.splice(0, enemies.length);
           advanceStage();
@@ -491,12 +713,7 @@ function bootAsadalGame(container) {
           base.maxHealth *= hostileMultiplier;
           base.damage *= hostileMultiplier * 0.9;
           base.speed *= 1 + (hostileMultiplier - 1) * 0.3;
-          const sprite = scene.add.circle(base.x, base.y, base.radius, 0xce6946);
-          sprite.setDepth(4);
-          base.sprite = sprite;
-          base.attackRing = scene.add.circle(base.x, base.y, base.attackRange + base.radius, 0xff4d4d, 0.05);
-          base.attackRing.setDepth(1);
-          enemies.push(base);
+          enemies.push(createEnemyVisual(base));
           return base;
         }
 
@@ -516,17 +733,12 @@ function bootAsadalGame(container) {
               enemy.maxHealth *= hostileMultiplier;
               enemy.damage *= hostileMultiplier * 0.8;
             }
-            const sprite = scene.add.circle(enemy.x, enemy.y, enemy.radius, isBoss ? 0xff7e50 : 0xc96f52);
-            sprite.setDepth(4);
-            enemy.sprite = sprite;
-            enemy.attackRing = scene.add.circle(enemy.x, enemy.y, enemy.attackRange + enemy.radius, 0xff4d4d, 0.05);
-            enemy.attackRing.setDepth(1);
-            enemies.push(enemy);
+            enemies.push(createEnemyVisual(enemy));
           }
         }
 
         function spawnBossSupport() {
-          const activeSupportCount = enemies.filter((enemy) => enemy.type !== 'boss').length;
+          const activeSupportCount = enemies.filter((enemy) => enemy.type !== 'boss' && !enemy.defeated).length;
           if (activeSupportCount >= 4) {
             return;
           }
@@ -554,12 +766,7 @@ function bootAsadalGame(container) {
             support.health = 18;
             support.maxHealth = 18;
             support.damage = 5;
-            const sprite = scene.add.circle(support.x, support.y, support.radius, 0xf39f61);
-            sprite.setDepth(4);
-            support.sprite = sprite;
-            support.attackRing = scene.add.circle(support.x, support.y, support.attackRange + support.radius, 0xff8d4d, 0.05);
-            support.attackRing.setDepth(1);
-            enemies.push(support);
+            enemies.push(createEnemyVisual(support, 'support'));
           }
         }
 
@@ -574,6 +781,7 @@ function bootAsadalGame(container) {
           if (clearedFinalBoss) return;
           clearedFinalBoss = true;
           skillSelectionOpen = true;
+          const ending = player.reputation <= 175 ? 'asadal' : 'conqueror';
           bossText.setText('호랑이 부족을 쓰러뜨렸다. 아사달의 신화가 시작된다');
           bossText.setVisible(true);
           stageLabel.setText('호랑이 부족');
@@ -590,17 +798,21 @@ function bootAsadalGame(container) {
               gameOver: false,
               win: true,
               running: false,
+              ending,
+              route: [...stageTribeOrder, '호랑이'],
             },
           }));
         }
 
         function damageEnemy(enemy, damage, knockback = 0) {
+          if (enemy.defeated) return;
           enemy.health -= damage;
           enemy.hitFlash = 0.12;
+          enemy.hitPose = 0.2;
           spawnFloatingText(enemy.x, enemy.y - 18, `-${Math.max(1, Math.round(damage))}`, '#ffd38d');
 
           if (enemy.sprite) {
-            enemy.sprite.setFillStyle(0xffffff);
+            enemy.sprite.setTintFill(0xffffff);
           }
           if (knockback > 0) {
             const angle = Phaser.Math.Angle.Between(playerBody.x, playerBody.y, enemy.x, enemy.y);
@@ -608,19 +820,16 @@ function bootAsadalGame(container) {
             enemy.y += Math.sin(angle) * knockback;
           }
           if (enemy.health <= 0) {
+            enemy.health = 0;
+            enemy.defeated = true;
+            enemy.deathTimer = enemy.type === 'boss' ? 1.35 : 0.92;
+            enemy.attackPose = 0;
+            enemy.attackHitPending = false;
+            enemy.knockdownTimer = 0;
+            enemy.attackRing?.setVisible(false);
             player.kills += 1;
             player.xp += enemy.type === 'boss' ? 25 : 8;
             player.reputation += enemy.type === 'boss' ? 10 : 2;
-            if (enemy.sprite) {
-              enemy.sprite.destroy();
-            }
-            if (enemy.attackRing) {
-              enemy.attackRing.destroy();
-            }
-            const index = enemies.indexOf(enemy);
-            if (index >= 0) {
-              enemies.splice(index, 1);
-            }
             spawnFloatingText(enemy.x, enemy.y - 20, enemy.type === 'boss' ? '+25' : '+8', '#8ef1a7');
             updateStageGoalText();
             if (enemy.type === 'boss') {
@@ -629,8 +838,10 @@ function bootAsadalGame(container) {
                 triggerVictory();
               }
             }
-            if (Math.random() < (enemy.type === 'boss' ? 0.9 : 0.28)) {
-            }
+          } else if (knockback >= 16 || damage >= enemy.maxHealth * 0.42) {
+            enemy.knockdownTimer = enemy.type === 'boss' ? 0.5 : 0.78;
+            enemy.attackPose = 0;
+            enemy.attackHitPending = false;
           }
         }
 
@@ -639,7 +850,7 @@ function bootAsadalGame(container) {
             return;
           }
           const desiredCount = Math.min(8, Math.max(2, stage + 1));
-          if (enemies.length < desiredCount) {
+          if (enemies.filter((enemy) => !enemy.defeated).length < desiredCount) {
             spawnEnemyAtEdge();
           }
         }
@@ -747,30 +958,30 @@ function bootAsadalGame(container) {
           let nearestEnemy = null;
           let nearestDistance = Number.MAX_VALUE;
 
-          player.attackFlash = 0.18;
-          playerAttackRing.setFillStyle(0xf8d8a0, 0.18);
-
           enemies.forEach((enemy) => {
+            if (enemy.defeated) return;
             const d = Phaser.Math.Distance.Between(playerBody.x, playerBody.y, enemy.x, enemy.y);
             if (d < nearestDistance) {
               nearestDistance = d;
               nearestEnemy = enemy;
             }
             if (d <= baseAttackRadius) {
-              const damage = player.damage + player.skillState.attack * 5 + player.skillState.roar * 3;
+              const auraDamage = player.skillState.aura > 0 && Math.random() < 0.5 ? player.skillState.aura * 2 : 0;
+              const damage = player.damage + player.skillState.attack * 5 + player.skillState.roar * 3 + auraDamage;
               damageEnemy(enemy, damage, player.skillState.roar > 0 ? 18 : 10);
               hitCount += 1;
-              if (player.skillState.aura > 0 && Math.random() < 0.5) {
-                enemy.health -= player.skillState.aura * 2;
-              }
               if (player.skillState.heal > 0 && hitCount % 2 === 0) {
                 player.health = Math.min(player.maxHealth, player.health + 2 + player.skillState.heal * 1.5);
               }
             }
           });
 
-          if (nearestEnemy) {
+          if (nearestEnemy && nearestDistance <= baseAttackRadius + 8) {
+            player.attackFlash = 0.18;
+            player.attackPoseTimer = 240;
+            playerAttackRing.setFillStyle(0xf8d8a0, 0.18);
             const angle = Phaser.Math.Angle.Between(playerBody.x, playerBody.y, nearestEnemy.x, nearestEnemy.y);
+            player.facing = Math.cos(angle) < 0 ? -1 : 1;
             const slashLength = Math.min(90, Phaser.Math.Distance.Between(playerBody.x, playerBody.y, nearestEnemy.x, nearestEnemy.y));
             const slash = scene.add.line(
               0,
@@ -791,6 +1002,26 @@ function bootAsadalGame(container) {
               onComplete: () => slash.destroy(),
             });
 
+            const weaponArc = scene.add.graphics({ x: playerBody.x, y: playerBody.y - 3 });
+            weaponArc.lineStyle(7, 0xffe0a0, 0.82);
+            weaponArc.beginPath();
+            weaponArc.arc(0, 0, 58, -0.85, 0.65, false);
+            weaponArc.strokePath();
+            weaponArc.lineStyle(2, 0xffffff, 0.9);
+            weaponArc.beginPath();
+            weaponArc.arc(0, 0, 64, -0.72, 0.5, false);
+            weaponArc.strokePath();
+            weaponArc.setRotation(angle).setDepth(17);
+            scene.tweens.add({
+              targets: weaponArc,
+              scaleX: 1.16,
+              scaleY: 1.16,
+              alpha: 0,
+              duration: 170,
+              ease: 'Cubic.easeOut',
+              onComplete: () => weaponArc.destroy(),
+            });
+
             const impactRing = scene.add.circle(playerBody.x, playerBody.y, 14, 0xf8d8a0, 0.18);
             impactRing.setDepth(6);
             scene.tweens.add({
@@ -807,8 +1038,229 @@ function bootAsadalGame(container) {
           }
         }
 
+        function getEnemyAttackDuration(enemy) {
+          const strike = enemy.archetype?.strike;
+          const baseDuration = strike === 'blunt' ? 0.48 : strike === 'sling' ? 0.42 : strike === 'spear' ? 0.4 : 0.34;
+          return baseDuration * (enemy.tactic?.windup ?? 1) * (enemy.type === 'boss' ? 1.12 : 1);
+        }
+
+        function spawnEnemyProjectile(enemy, angle) {
+          const speed = enemy.tactic?.projectileSpeed ?? 230;
+          const orb = scene.add.circle(enemy.x, enemy.y - 7, enemy.type === 'boss' ? 7 : 5, enemy.archetype.color, 0.95)
+            .setStrokeStyle(2, 0xffe3ad, 0.8)
+            .setDepth(18);
+          projectiles.push({
+            orb,
+            x: enemy.x,
+            y: enemy.y - 7,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 1.35,
+            damage: enemy.damage * 0.86,
+          });
+        }
+
+        function pulseEnemyAura(enemy, color, radius) {
+          const pulse = scene.add.circle(enemy.x, enemy.y, 18, color, 0.13)
+            .setStrokeStyle(2, color, 0.5)
+            .setDepth(4);
+          scene.tweens.add({
+            targets: pulse,
+            scale: radius / 18,
+            alpha: 0,
+            duration: 420,
+            ease: 'Cubic.easeOut',
+            onComplete: () => pulse.destroy(),
+          });
+        }
+
+        function updateEnemyTactic(enemy, distance, delta) {
+          const tactic = enemy.tactic || enemyTactics.쥐;
+          enemy.aiCooldown = Math.max(0, (enemy.aiCooldown ?? 0) - delta / 1000);
+          enemy.retreatTimer = Math.max(0, (enemy.retreatTimer ?? 0) - delta / 1000);
+
+          if (enemy.type !== 'boss' && (tactic.style === 'charger' || tactic.style === 'pouncer')
+            && enemy.aiCooldown <= 0 && distance > 82 && distance < 245) {
+            enemy.isCharging = tactic.style === 'pouncer' ? 0.44 : 0.58;
+            enemy.aiCooldown = tactic.style === 'pouncer' ? 2.6 : 3.35;
+            pulseEnemyAura(enemy, enemy.archetype.color, tactic.style === 'pouncer' ? 62 : 76);
+          }
+
+          if (tactic.style === 'support' && enemy.aiCooldown <= 0) {
+            const radius = tactic.auraRadius;
+            let healed = false;
+            enemies.forEach((ally) => {
+              if (ally === enemy || ally.defeated) return;
+              if (Phaser.Math.Distance.Between(enemy.x, enemy.y, ally.x, ally.y) > radius) return;
+              const before = ally.health;
+              ally.health = Math.min(ally.maxHealth, ally.health + ally.maxHealth * 0.12);
+              healed ||= ally.health > before;
+            });
+            enemy.aiCooldown = 4.4;
+            if (healed) pulseEnemyAura(enemy, 0xbfe8b2, radius);
+          }
+
+          if (tactic.style === 'commander' && enemy.aiCooldown <= 0) {
+            const radius = tactic.auraRadius;
+            enemies.forEach((ally) => {
+              if (ally.defeated || Phaser.Math.Distance.Between(enemy.x, enemy.y, ally.x, ally.y) > radius) return;
+              ally.attackCooldown = Math.max(0, ally.attackCooldown - 0.32);
+            });
+            enemy.aiCooldown = 4.8;
+            pulseEnemyAura(enemy, 0xe7b05b, radius);
+          }
+        }
+
+        function getEnemySteering(enemy, distance, attackRange) {
+          const tactic = enemy.tactic || enemyTactics.쥐;
+          let angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, playerBody.x, playerBody.y);
+          const shouldRetreat = enemy.retreatTimer > 0
+            || ((tactic.style === 'ranged' || tactic.style === 'support') && distance < tactic.retreatRange)
+            || (tactic.style === 'skirmisher' && distance < tactic.retreatRange);
+
+          if (shouldRetreat) angle += Math.PI;
+          else if ((tactic.style === 'flanker' || tactic.style === 'skirmisher' || tactic.style === 'duelist')
+            && distance < attackRange + 76) angle += enemy.orbitDirection * (tactic.orbit ?? 0.5);
+
+          if (tactic.style === 'formation') {
+            const active = enemies.filter((candidate) => !candidate.defeated);
+            const slot = active.indexOf(enemy) % 3 - 1;
+            const targetY = playerBody.y + slot * tactic.formationSpacing;
+            angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, playerBody.x, targetY);
+          }
+
+          return angle;
+        }
+
+        function triggerPlayerDefeat() {
+          if (player.health > 0) return;
+          player.health = 0;
+          dispatchHud(player, stage, tribeNames[currentTribeIndex] + ' 부족');
+          window.dispatchEvent(new CustomEvent('asadal:state', {
+            detail: {
+              health: 0,
+              maxHealth: player.maxHealth,
+              xp: player.xp,
+              level: player.level,
+              stage,
+              currentTribe: tribeNames[currentTribeIndex] + ' 부족',
+              reputation: player.reputation,
+              totalKills: player.kills,
+              gameOver: true,
+              running: false,
+            },
+          }));
+        }
+
+        function updateEnemyProjectiles(delta) {
+          for (let index = projectiles.length - 1; index >= 0; index -= 1) {
+            const projectile = projectiles[index];
+            projectile.life -= delta / 1000;
+            projectile.x += projectile.vx * delta / 1000;
+            projectile.y += projectile.vy * delta / 1000;
+            projectile.orb.setPosition(projectile.x, projectile.y);
+            const hit = Phaser.Math.Distance.Between(projectile.x, projectile.y, playerBody.x, playerBody.y) <= playerBody.radius + 7;
+            if (hit && player.health > 0) {
+              player.health = Math.max(0, player.health - projectile.damage);
+              player.hitPoseTimer = 160;
+              spawnFloatingText(playerBody.x, playerBody.y - 18, `-${Math.max(1, Math.round(projectile.damage))}`, '#ff9f70');
+              triggerPlayerDefeat();
+            }
+            if (hit || projectile.life <= 0 || projectile.x < 0 || projectile.x > world.width || projectile.y < 0 || projectile.y > world.height) {
+              projectile.orb.destroy();
+              projectiles.splice(index, 1);
+            }
+          }
+        }
+
+        function setEnemyReactionVisual(enemy, pose, alpha = 1) {
+          if (!enemy.sprite) return;
+          const textureKey = `${enemy.archetype.texture}-${pose}`;
+          if (enemy.sprite.texture.key !== textureKey) enemy.sprite.setTexture(textureKey);
+          const runFrameOne = scene.textures.getFrame(`${enemy.archetype.texture}-run-1`);
+          const runFrameTwo = scene.textures.getFrame(`${enemy.archetype.texture}-run-2`);
+          const referenceHeight = (runFrameOne.realHeight + runFrameTwo.realHeight) * 0.5;
+          const motionScale = enemy.visualHeight / referenceHeight;
+          enemy.sprite
+            .setPosition(enemy.x, enemy.y)
+            .setDisplaySize(enemy.sprite.frame.realWidth * motionScale, enemy.sprite.frame.realHeight * motionScale)
+            .setDepth(10 + enemy.y / 1000)
+            .setFlipX(playerBody.x > enemy.x)
+            .setAngle(0)
+            .setAlpha(alpha);
+        }
+
+        function resolveEnemyAttack(enemy, attackRange) {
+          const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, playerBody.x, playerBody.y);
+          spawnEnemyWeaponMotion(enemy, angle);
+          enemy.attackHitPending = false;
+
+          if (enemy.tactic?.style === 'ranged') {
+            spawnEnemyProjectile(enemy, angle);
+            return;
+          }
+
+          const impactDistance = Phaser.Math.Distance.Between(enemy.x, enemy.y, playerBody.x, playerBody.y);
+          if (impactDistance > attackRange + 16 || player.health <= 0) return;
+
+          let damageScale = enemy.tactic?.impactScale ?? 1;
+          if (enemy.tactic?.style === 'berserker' && enemy.health <= enemy.maxHealth * 0.45) damageScale *= 1.28;
+          if (enemy.tactic?.style === 'commander') damageScale *= 1.08;
+          player.health -= enemy.damage * damageScale + (enemy.type === 'boss' && enemy.isCharging > 0 ? 4 : 0);
+          player.hitPoseTimer = 180;
+          if (enemy.tactic?.style === 'poison') {
+            player.poisonTimer = Math.max(player.poisonTimer, 2.4);
+            player.poisonTickTimer = 0;
+          }
+          if (enemy.tactic?.style === 'skirmisher') enemy.retreatTimer = 0.55;
+          if (enemy.tactic?.style === 'duelist') {
+            if (enemy.comboCount === 0) {
+              enemy.comboCount = 1;
+              enemy.attackCooldown = 0.14;
+            } else {
+              enemy.comboCount = 0;
+            }
+          }
+          scene.cameras.main.shake(enemy.type === 'boss' ? 90 : 55, enemy.type === 'boss' ? 0.0035 : 0.0018);
+
+          triggerPlayerDefeat();
+        }
+
         function updateEnemyMovement(delta) {
+          const expiredEnemies = [];
           enemies.forEach((enemy) => {
+            const archetype = enemy.archetype || enemyArchetypes.쥐;
+            const attackDuration = getEnemyAttackDuration(enemy);
+            const previousAttackPose = enemy.attackPose ?? 0;
+            enemy.hitPose = Math.max(0, (enemy.hitPose ?? 0) - delta / 1000);
+
+            if (enemy.defeated) {
+              enemy.deathTimer = Math.max(0, enemy.deathTimer - delta / 1000);
+              const fallThreshold = enemy.type === 'boss' ? 0.86 : 0.58;
+              const fadeThreshold = enemy.type === 'boss' ? 0.42 : 0.26;
+              const pose = enemy.deathTimer > fallThreshold ? 'down' : 'death';
+              const alpha = enemy.deathTimer < fadeThreshold ? enemy.deathTimer / fadeThreshold : 1;
+              setEnemyReactionVisual(enemy, pose, alpha);
+              enemy.shadow?.setAlpha(0.38 * alpha).setPosition(enemy.x, enemy.y + enemy.visualHeight * 0.12);
+              if (enemy.deathTimer <= 0) expiredEnemies.push(enemy);
+              return;
+            }
+
+            if (enemy.knockdownTimer > 0) {
+              enemy.knockdownTimer = Math.max(0, enemy.knockdownTimer - delta / 1000);
+              const pose = enemy.knockdownTimer > 0.52 ? 'down' : enemy.knockdownTimer > 0.22 ? 'death' : 'recover';
+              setEnemyReactionVisual(enemy, pose);
+              enemy.shadow?.setPosition(enemy.x, enemy.y + enemy.visualHeight * 0.12).setAlpha(0.34);
+              return;
+            }
+
+            if (enemy.hitPose > 0) {
+              setEnemyReactionVisual(enemy, 'hit');
+              enemy.shadow?.setPosition(enemy.x, enemy.y + enemy.visualHeight * 0.16).setAlpha(0.38);
+              return;
+            }
+
+            updateEnemyTactic(enemy, Phaser.Math.Distance.Between(enemy.x, enemy.y, playerBody.x, playerBody.y), delta);
             enemy.attackCooldown = Math.max(0, enemy.attackCooldown - delta / 1000);
             enemy.attackWarning = Math.max(0, enemy.attackWarning - delta / 1000);
             enemy.chargeCooldown = Math.max(0, (enemy.chargeCooldown ?? 0) - delta / 1000);
@@ -816,9 +1268,15 @@ function bootAsadalGame(container) {
             enemy.bossRushCooldown = Math.max(0, (enemy.bossRushCooldown ?? 0) - delta / 1000);
             enemy.bossPulseCooldown = Math.max(0, (enemy.bossPulseCooldown ?? 0) - delta / 1000);
             enemy.bossSummonCooldown = Math.max(0, (enemy.bossSummonCooldown ?? 0) - delta / 1000);
+            enemy.attackPose = Math.max(0, (enemy.attackPose ?? 0) - delta / 1000);
 
             const d = Phaser.Math.Distance.Between(enemy.x, enemy.y, playerBody.x, playerBody.y);
             const attackRange = enemy.attackRange + playerBody.radius;
+            const impactRemaining = attackDuration * 0.46;
+
+            if (enemy.attackHitPending && previousAttackPose > impactRemaining && enemy.attackPose <= impactRemaining) {
+              resolveEnemyAttack(enemy, attackRange);
+            }
 
             if (enemy.type === 'boss') {
               enemy.bossPhase = enemy.health <= enemy.maxHealth * 0.6 ? 2 : 1;
@@ -851,6 +1309,8 @@ function bootAsadalGame(container) {
 
                 if (d <= 120) {
                   player.health -= 8 + enemy.bossPhase * 2;
+                  player.hitPoseTimer = 180;
+                  scene.cameras.main.shake(70, 0.0025);
                   spawnFloatingText(playerBody.x, playerBody.y - 18, '-10', '#ff7e50');
                 }
               }
@@ -861,85 +1321,164 @@ function bootAsadalGame(container) {
               }
             }
 
-            if (enemy.type === 'boss' && enemy.isCharging > 0) {
+            let enemyMoved = false;
+            if (enemy.isCharging > 0) {
               const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, playerBody.x, playerBody.y);
-              enemy.x += Math.cos(angle) * enemy.speed * 2.1 * (delta / 1000);
-              enemy.y += Math.sin(angle) * enemy.speed * 2.1 * (delta / 1000);
-            } else if (d > attackRange) {
-              const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, playerBody.x, playerBody.y);
-              const moveSpeed = enemy.speed * (delta / 1000);
+              const chargeScale = enemy.tactic?.chargeSpeed ?? 2.1;
+              enemy.x += Math.cos(angle) * enemy.speed * chargeScale * (delta / 1000);
+              enemy.y += Math.sin(angle) * enemy.speed * chargeScale * (delta / 1000);
+              enemyMoved = true;
+            } else if (enemy.attackPose <= 0 && (
+              d > attackRange
+              || ((enemy.tactic?.style === 'ranged' || enemy.tactic?.style === 'support' || enemy.tactic?.style === 'skirmisher')
+                && d < (enemy.tactic?.retreatRange ?? 0))
+              || ((enemy.tactic?.style === 'flanker' || enemy.tactic?.style === 'duelist') && d < attackRange + 76)
+            )) {
+              const angle = getEnemySteering(enemy, d, attackRange);
+              const rageScale = enemy.tactic?.style === 'berserker' && enemy.health <= enemy.maxHealth * 0.45 ? 1.38 : 1;
+              const moveSpeed = enemy.speed * rageScale * (delta / 1000);
               enemy.x += Math.cos(angle) * moveSpeed;
               enemy.y += Math.sin(angle) * moveSpeed;
+              enemyMoved = true;
             }
 
             enemy.x = clamp(enemy.x, 16, world.width - 16);
             enemy.y = clamp(enemy.y, 16, world.height - 16);
 
             if (enemy.sprite) {
-              enemy.sprite.setPosition(enemy.x, enemy.y);
+              const strideCycle = worldTime * archetype.frequency + enemy.stridePhase;
+              const stride = Math.sin(strideCycle);
+              const lunging = enemy.attackPose > 0;
+              const walking = !lunging && enemyMoved;
+              const visualHeight = enemy.visualHeight;
+              const attackProgress = lunging ? 1 - enemy.attackPose / attackDuration : 0;
+              const stepLift = walking ? ((Math.cos(strideCycle * 2) + 1) * 0.5) * archetype.bob * 0.55 : 0;
+              const anticipation = lunging && attackProgress < 0.46
+                ? Math.sin((attackProgress / 0.46) * Math.PI * 0.5)
+                : 0;
+              const followThrough = lunging && attackProgress >= 0.46
+                ? Math.sin(((attackProgress - 0.46) / 0.54) * Math.PI)
+                : 0;
+              const lungeProgress = followThrough - anticipation * 0.2;
+              const squash = lunging ? followThrough * 0.055 : walking ? Math.abs(stride) * 0.012 : 0;
+              const targetOnRight = playerBody.x > enemy.x;
+              const facing = targetOnRight ? 1 : -1;
+              const textureKey = lunging
+                ? `${archetype.texture}-attack-${attackProgress < 0.46 ? 1 : 2}`
+                : walking
+                  ? `${archetype.texture}-run-${stride >= 0 ? 1 : 2}`
+                  : archetype.texture;
+
+              if (enemy.sprite.texture.key !== textureKey) enemy.sprite.setTexture(textureKey);
+              const isMotionFrame = lunging || walking;
+              const runFrameOne = scene.textures.getFrame(`${archetype.texture}-run-1`);
+              const runFrameTwo = scene.textures.getFrame(`${archetype.texture}-run-2`);
+              const referenceHeight = (runFrameOne.realHeight + runFrameTwo.realHeight) * 0.5;
+              const motionScale = visualHeight / referenceHeight;
+              const poseHeight = isMotionFrame
+                ? enemy.sprite.frame.realHeight * motionScale * (1 - squash * 0.35)
+                : visualHeight;
+              const poseWidth = isMotionFrame
+                ? enemy.sprite.frame.realWidth * motionScale * (1 + squash)
+                : visualHeight * (enemy.sprite.frame.realWidth / enemy.sprite.frame.realHeight);
+
+              enemy.sprite
+                .setPosition(
+                  enemy.x + facing * lungeProgress * archetype.lunge,
+                  enemy.y - stepLift,
+                )
+                .setDisplaySize(poseWidth, poseHeight)
+                .setDepth(10 + enemy.y / 1000)
+                .setFlipX(targetOnRight)
+                .setAngle(
+                  lunging
+                    ? facing * -archetype.tilt * followThrough * 0.18
+                    : walking
+                      ? stride * archetype.tilt * 0.18
+                      : 0,
+                );
+            }
+
+            if (enemy.shadow) {
+              const strideCycle = worldTime * archetype.frequency + enemy.stridePhase;
+              const stepLift = enemyMoved && enemy.attackPose <= 0
+                ? ((Math.cos(strideCycle * 2) + 1) * 0.5) * archetype.bob * 0.55
+                : 0;
+              enemy.shadow
+                .setPosition(enemy.x, enemy.y + enemy.visualHeight * 0.16)
+                .setScale(1 - stepLift * 0.025, 1 - stepLift * 0.012);
             }
 
             if (enemy.attackRing) {
               enemy.attackRing.setPosition(enemy.x, enemy.y);
               enemy.attackRing.setRadius(enemy.attackRange + enemy.radius);
-              enemy.attackRing.setFillStyle(enemy.type === 'boss' && enemy.isCharging > 0 ? 0xffc266 : 0xff5c5c, d <= attackRange ? 0.22 : 0.08);
+              const telegraphing = enemy.attackWarning > 0;
+              const warningPulse = 0.18 + Math.abs(Math.sin(worldTime * 0.025)) * 0.12;
+              enemy.attackRing.setFillStyle(
+                enemy.isCharging > 0 ? 0xffc266 : telegraphing ? archetype.color : 0xff5c5c,
+                telegraphing ? warningPulse : d <= attackRange ? 0.14 : 0.045,
+              );
             }
 
             if (enemy.hitFlash > 0) {
               enemy.hitFlash -= delta / 1000;
               if (enemy.sprite) {
-                enemy.sprite.setFillStyle(0xffffff);
+                enemy.sprite.setTintFill(0xffffff);
               }
             } else if (enemy.sprite) {
               const isThreatened = d <= attackRange + 22;
-              enemy.sprite.setFillStyle(isThreatened ? 0xffc077 : enemy.type === 'boss' ? 0xff7e50 : 0xc96f52);
+              enemy.sprite.setTint(isThreatened ? 0xffc077 : enemy.baseTint);
             }
 
-            if (d <= attackRange && enemy.attackCooldown <= 0) {
-              enemy.attackWarning = 0.25;
-              const angle = Phaser.Math.Angle.Between(playerBody.x, playerBody.y, enemy.x, enemy.y);
-              const strike = scene.add.line(
-                0,
-                0,
-                enemy.x,
-                enemy.y,
-                enemy.x + Math.cos(angle) * 35,
-                enemy.y + Math.sin(angle) * 35,
-                enemy.type === 'boss' ? 0xffb46d : 0xff8a6b,
-                0.8,
-              );
-              strike.setLineWidth(enemy.type === 'boss' ? 5 : 4);
-              scene.tweens.add({
-                targets: strike,
-                alpha: 0,
-                duration: 120,
-                onComplete: () => strike.destroy(),
-              });
-
-              player.health -= enemy.damage + (enemy.type === 'boss' && enemy.isCharging > 0 ? 4 : 0);
+            if (d <= attackRange && enemy.attackCooldown <= 0 && enemy.attackPose <= 0) {
+              enemy.attackWarning = attackDuration * 0.54;
+              enemy.attackPose = attackDuration;
+              enemy.attackHitPending = true;
               enemy.attackCooldown = enemy.attackDelay;
-              enemy.hitFlash = 0.12;
-
-              if (player.health <= 0) {
-                player.health = 0;
-                dispatchHud(player, stage, tribeNames[currentTribeIndex] + ' 부족');
-                window.dispatchEvent(new CustomEvent('asadal:state', {
-                  detail: {
-                    health: 0,
-                    maxHealth: player.maxHealth,
-                    xp: player.xp,
-                    level: player.level,
-                    stage,
-                    currentTribe: tribeNames[currentTribeIndex] + ' 부족',
-                    reputation: player.reputation,
-                    totalKills: 0,
-                    gameOver: true,
-                    running: false,
-                  },
-                }));
-              }
+              enemy.hitFlash = 0.1;
             }
           });
+
+          for (let left = 0; left < enemies.length; left += 1) {
+            const first = enemies[left];
+            if (first.defeated || first.knockdownTimer > 0) continue;
+            for (let right = left + 1; right < enemies.length; right += 1) {
+              const second = enemies[right];
+              if (second.defeated || second.knockdownTimer > 0) continue;
+              const dx = second.x - first.x;
+              const dy = second.y - first.y;
+              const distance = Math.hypot(dx, dy) || 0.001;
+              const spacing = first.radius + second.radius + 5;
+              if (distance >= spacing) continue;
+              const push = (spacing - distance) * 0.45;
+              const nx = dx / distance;
+              const ny = dy / distance;
+              first.x = clamp(first.x - nx * push, 16, world.width - 16);
+              first.y = clamp(first.y - ny * push, 16, world.height - 16);
+              second.x = clamp(second.x + nx * push, 16, world.width - 16);
+              second.y = clamp(second.y + ny * push, 16, world.height - 16);
+            }
+          }
+
+          expiredEnemies.forEach((enemy) => {
+            destroyEnemyVisual(enemy);
+            const index = enemies.indexOf(enemy);
+            if (index >= 0) enemies.splice(index, 1);
+          });
+
+          updateEnemyProjectiles(delta);
+          if (player.poisonTimer > 0 && player.health > 0) {
+            player.poisonTimer = Math.max(0, player.poisonTimer - delta / 1000);
+            player.poisonTickTimer += delta / 1000;
+            if (player.poisonTickTimer >= 0.48) {
+              player.poisonTickTimer = 0;
+              const poisonDamage = 1.6;
+              player.health = Math.max(0, player.health - poisonDamage);
+              player.hitPoseTimer = 90;
+              spawnFloatingText(playerBody.x, playerBody.y - 20, '-독', '#8fce75');
+              triggerPlayerDefeat();
+            }
+          }
         }
 
         const onKeyChange = (event, isDown) => {
@@ -973,9 +1512,22 @@ function bootAsadalGame(container) {
           resolveTribeIndexes();
           player.alliedTribe = tribeNames[alliedTribeIndex];
           player.hostileTribe = tribeNames[hostileTribeIndex];
+          const hostileName = tribeNames[hostileTribeIndex];
+          const remainingTribes = shuffle(
+            tribeNames.filter((name) => name !== player.alliedTribe && name !== hostileName),
+          );
+          stageTribeOrder = [hostileName, ...remainingTribes.slice(0, 4)];
+          window.dispatchEvent(new CustomEvent('asadal:state', {
+            detail: {
+              alliedTribe: player.alliedTribe,
+              hostileTribe: player.hostileTribe,
+              route: [...stageTribeOrder],
+            },
+          }));
         };
 
         const onStartRun = () => {
+          runStarted = true;
           worldTime = 0;
           player.trainingPoints = 5;
           player.trainingLevels = {
@@ -990,6 +1542,14 @@ function bootAsadalGame(container) {
           player.level = 1;
           player.reputation = 0;
           player.kills = 0;
+          player.attackPoseTimer = 0;
+          player.hitPoseTimer = 0;
+          player.facing = 1;
+          player.runCycleTime = 0;
+          playerPose = 'idle';
+          playerTexture = 'ung-warrior';
+          lastRunFrame = -1;
+          playerSprite.setTexture('ung-warrior').setAngle(0).clearTint();
           stage = 0;
           if (alliedTribeIndex < 0 || hostileTribeIndex < 0 || alliedTribeIndex === hostileTribeIndex) {
             const available = tribeNames.map((_, index) => index).filter((index) => index !== 0);
@@ -1000,12 +1560,18 @@ function bootAsadalGame(container) {
           currentTribeIndex = alliedTribeIndex;
           player.alliedTribe = tribeNames[alliedTribeIndex];
           player.hostileTribe = tribeNames[hostileTribeIndex];
+          const hostileName = tribeNames[hostileTribeIndex];
+          if (stageTribeOrder.length !== 5 || stageTribeOrder[0] !== hostileName) {
+            const remainingTribes = shuffle(
+              tribeNames.filter((name) => name !== player.alliedTribe && name !== hostileName),
+            );
+            stageTribeOrder = [hostileName, ...remainingTribes.slice(0, 4)];
+          }
           clearedFinalBoss = false;
           applyAlliedSetupBonus();
           window.__asadalTribeIndex = currentTribeIndex;
           enemies.forEach((enemy) => {
-            if (enemy.sprite) enemy.sprite.destroy();
-            if (enemy.attackRing) enemy.attackRing.destroy();
+            destroyEnemyVisual(enemy);
           });
           enemies.splice(0, enemies.length);
           touchInput = { x: 0, y: 0 };
@@ -1031,6 +1597,8 @@ function bootAsadalGame(container) {
               gameOver: false,
               win: false,
               running: true,
+              ending: null,
+              route: [...stageTribeOrder],
             },
           }));
           emitTrainingChoices(player);
@@ -1045,6 +1613,12 @@ function bootAsadalGame(container) {
           applySkill(id);
         };
 
+        const onContinueStory = () => {
+          if (stage === 6 && !clearedFinalBoss) {
+            skillSelectionOpen = false;
+          }
+        };
+
         window.addEventListener('keydown', onKeyDown);
         window.addEventListener('keyup', onKeyUp);
         window.addEventListener('blur', resetMovementInput);
@@ -1053,6 +1627,7 @@ function bootAsadalGame(container) {
         window.addEventListener('asadal:tribeSetup', onTribeSetup);
         window.addEventListener('asadal:startRun', onStartRun);
         window.addEventListener('asadal:chooseSkill', onChooseSkill);
+        window.addEventListener('asadal:continueStory', onContinueStory);
 
         scene.events.on('shutdown', () => {
           scene.scale.off('resize', positionCanvasHud);
@@ -1064,6 +1639,7 @@ function bootAsadalGame(container) {
           window.removeEventListener('asadal:tribeSetup', onTribeSetup);
           window.removeEventListener('asadal:startRun', onStartRun);
           window.removeEventListener('asadal:chooseSkill', onChooseSkill);
+          window.removeEventListener('asadal:continueStory', onContinueStory);
         });
 
         showDefaultHud(stage, tribeNames[currentTribeIndex] + ' 부족', player);
@@ -1076,28 +1652,11 @@ function bootAsadalGame(container) {
           repeat: -1,
         });
 
-        this.time.addEvent({
-          delay: 150,
-          callback: () => {
-            if (!pendingRestart && !skillSelectionOpen && player.health > 0) {
-              const keyboardX = (keyboardInput.right ? 1 : 0) - (keyboardInput.left ? 1 : 0);
-              const keyboardY = (keyboardInput.down ? 1 : 0) - (keyboardInput.up ? 1 : 0);
-              const directionX = keyboardX + touchInput.x;
-              const directionY = keyboardY + touchInput.y;
-              const moveX = directionX !== 0 || directionY !== 0 ? 1 : 0;
-              if (moveX) {
-                const length = Math.hypot(directionX, directionY) || 1;
-                const normX = directionX / length;
-                const normY = directionY / length;
-                playerBody.x += normX * player.speed * 0.05;
-                playerBody.y += normY * player.speed * 0.05;
-              }
-            }
-          },
-          loop: true,
-        });
-
         this.events.on('update', (time, delta) => {
+          if (!runStarted) {
+            return;
+          }
+
           worldTime += delta;
 
           if (player.health <= 0) {
@@ -1109,14 +1668,101 @@ function bootAsadalGame(container) {
             const movementY = (keyboardInput.down ? 1 : 0) - (keyboardInput.up ? 1 : 0) + touchInput.y;
             if (movementX !== 0 || movementY !== 0) {
               const length = Math.hypot(movementX, movementY) || 1;
-              const vx = (movementX / length) * player.speed * (delta / 1000);
-              const vy = (movementY / length) * player.speed * (delta / 1000);
+              const attackMoveScale = player.attackPoseTimer > 0 ? 0.34 : 1;
+              const vx = (movementX / length) * player.speed * attackMoveScale * (delta / 1000);
+              const vy = (movementY / length) * player.speed * attackMoveScale * (delta / 1000);
               playerBody.x = clamp(playerBody.x + vx, 20, world.width - 20);
               playerBody.y = clamp(playerBody.y + vy, 20, world.height - 20);
             }
 
             player.x = playerBody.x;
             player.y = playerBody.y;
+            const isMoving = Math.hypot(movementX, movementY) > 0.08;
+            if (Math.abs(movementX) > 0.08) player.facing = movementX < 0 ? -1 : 1;
+            player.attackPoseTimer = Math.max(0, player.attackPoseTimer - delta);
+            player.hitPoseTimer = Math.max(0, player.hitPoseTimer - delta);
+
+            const nextPose = player.attackPoseTimer > 0 ? 'attack' : isMoving ? 'run' : 'idle';
+            if (isMoving && nextPose === 'run') {
+              player.runCycleTime += delta * clamp(player.speed / 180, 0.82, 1.35);
+            } else if (!isMoving) {
+              player.runCycleTime = 0;
+              lastRunFrame = -1;
+            }
+
+            const runFrame = Math.floor(player.runCycleTime / 105) % 4;
+            const runCycle = (player.runCycleTime / 420) * Math.PI * 2;
+            const nextTexture = nextPose === 'attack'
+              ? 'ung-attack'
+              : nextPose === 'run'
+                ? `ung-run-${runFrame + 1}`
+                : 'ung-warrior';
+            if (nextPose !== playerPose || nextTexture !== playerTexture) {
+              playerPose = nextPose;
+              playerTexture = nextTexture;
+              playerSprite.setTexture(nextTexture);
+            }
+
+            if (playerPose === 'run' && runFrame !== lastRunFrame) {
+              if (runFrame === 0 || runFrame === 2) {
+                const footDust = scene.add.ellipse(
+                  playerBody.x - player.facing * 9,
+                  playerBody.y + 18,
+                  18,
+                  6,
+                  0xb38a59,
+                  0.28,
+                ).setDepth(8);
+                scene.tweens.add({
+                  targets: footDust,
+                  x: footDust.x - player.facing * 8,
+                  scaleX: 1.8,
+                  scaleY: 0.6,
+                  alpha: 0,
+                  duration: 220,
+                  onComplete: () => footDust.destroy(),
+                });
+              }
+              lastRunFrame = runFrame;
+            }
+
+            const runBounce = isMoving && playerPose === 'run' ? Math.abs(Math.sin(runCycle)) * 3.2 : 0;
+            const idleBreath = playerPose === 'idle' ? Math.sin(worldTime * 0.004) : 0;
+            const attackProgress = player.attackPoseTimer / 240;
+            const attackKick = playerPose === 'attack' ? Math.sin((1 - attackProgress) * Math.PI) : 0;
+            const hitSquash = player.hitPoseTimer > 0 ? Math.sin((player.hitPoseTimer / 180) * Math.PI) * 0.1 : 0;
+            const poseWidth = playerPose === 'attack' ? 84 : playerPose === 'run' ? 76 : 75;
+            const poseHeight = playerPose === 'attack' ? 108 : playerPose === 'run' ? 110 : 112;
+
+            playerSprite
+              .setPosition(
+                playerBody.x + player.facing * attackKick * 5,
+                playerBody.y - runBounce + idleBreath * 1.2,
+              )
+              .setDisplaySize(
+                poseWidth * (1 + attackKick * 0.08 + hitSquash),
+                poseHeight * (1 - hitSquash * 0.55),
+              )
+              .setDepth(10 + playerBody.y / 1000)
+              .setFlipX(player.facing < 0)
+              .setAngle(
+                playerPose === 'attack'
+                  ? player.facing * (-7 + (1 - attackProgress) * 13)
+                  : playerPose === 'run'
+                    ? Math.sin(runCycle) * 1.35
+                    : idleBreath * 0.45,
+              );
+
+            if (player.hitPoseTimer > 0) {
+              playerSprite.setTintFill(0xffd7c2);
+            } else {
+              playerSprite.clearTint();
+            }
+
+            playerShadow
+              .setPosition(playerBody.x, playerBody.y + 19)
+              .setScale(isMoving ? 1 - runBounce * 0.018 : 1, isMoving ? 0.92 : 1)
+              .setAlpha(playerPose === 'attack' ? 0.5 : 0.42);
             runeCircle.setPosition(playerBody.x, playerBody.y);
             playerAttackRing.setPosition(playerBody.x, playerBody.y);
             playerAttackRing.setRadius(player.attackRange + 10);

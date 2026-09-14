@@ -20,6 +20,9 @@ pnpm-debug.log*
 coverage/
 .vite/
 .cache/
+.edge-*/
+*-preview.png
+*.pid
 
 # Editors and operating systems
 .idea/
@@ -27,4 +30,3 @@ coverage/
 *.swp
 .DS_Store
 Thumbs.db
-
