@@ -1,5 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { bootAsadalGame } from './game/asadalGame';
+import { GAME_PHASE, isCombatPaused, resolveGamePhase } from './gameFlow';
+import {
+  ENDINGS,
+  META_STORAGE_KEY,
+  TRAINING_ITEMS,
+  createInitialMeta,
+  investTraining,
+  normalizeMeta,
+  recordRunStart,
+  refundTraining,
+  rewardBoss,
+  trainingCost,
+  unlockEnding,
+} from './metaProgress';
 
 const tribePool = ['쥐', '소', '토끼', '용', '뱀', '말', '양', '원숭이', '닭', '개', '돼지'];
 
@@ -25,6 +38,13 @@ const initialHud = {
   running: false,
   route: [],
   ending: null,
+};
+
+const createRunSetup = () => {
+  const pair = pickTribePair();
+  const routePool = tribePool.filter((tribe) => tribe !== pair.alliedTribe && tribe !== pair.hostileTribe);
+  const route = [pair.hostileTribe, ...routePool.sort(() => Math.random() - 0.5).slice(0, 4)];
+  return { ...pair, route };
 };
 
 const prologueScenes = [
@@ -75,11 +95,23 @@ function App() {
   const containerRef = useRef(null);
   const gameRef = useRef(null);
   const joystickRef = useRef(null);
+  const runSetupRef = useRef(null);
   const [hud, setHud] = useState(initialHud);
   const [choices, setChoices] = useState([]);
   const [choiceSource, setChoiceSource] = useState('map');
   const [choiceMeta, setChoiceMeta] = useState({ label: '가르침', remaining: null, selected: [] });
   const [showIntro, setShowIntro] = useState(true);
+  const [menuView, setMenuView] = useState('home');
+  const [gameReady, setGameReady] = useState(false);
+  const [gameLoading, setGameLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [meta, setMeta] = useState(() => {
+    try {
+      return normalizeMeta(JSON.parse(localStorage.getItem(META_STORAGE_KEY)));
+    } catch {
+      return createInitialMeta();
+    }
+  });
   const [showTutorial, setShowTutorial] = useState(false);
   const [prologueStep, setPrologueStep] = useState(-1);
   const [chapter, setChapter] = useState(null);
@@ -99,6 +131,8 @@ function App() {
       }
       if (detail.win) {
         setEndingStep(0);
+        setChoices([]);
+        setMeta((current) => unlockEnding(current, detail.ending));
       }
       setHud((previous) => ({ ...previous, ...detail }));
     };
@@ -118,58 +152,98 @@ function App() {
       setChoices([]);
     };
 
-    const handleStart = () => {
-      setShowIntro(false);
-      setChoices([]);
-    };
-
     const handleChapter = (event) => {
       setChapter(event.detail || null);
       setChoices([]);
     };
 
+    const handleMetaReward = (event) => {
+      if (event.detail?.type === 'boss') {
+        setMeta((current) => rewardBoss(current, Boolean(event.detail.final)));
+      }
+    };
+
     window.addEventListener('asadal:state', handleHud);
     window.addEventListener('asadal:skillChoices', handleChoices);
     window.addEventListener('asadal:clearChoices', clearChoices);
-    window.addEventListener('asadal:start', handleStart);
     window.addEventListener('asadal:story', handleChapter);
+    window.addEventListener('asadal:metaReward', handleMetaReward);
 
     return () => {
       window.removeEventListener('asadal:state', handleHud);
       window.removeEventListener('asadal:skillChoices', handleChoices);
       window.removeEventListener('asadal:clearChoices', clearChoices);
-      window.removeEventListener('asadal:start', handleStart);
       window.removeEventListener('asadal:story', handleChapter);
+      window.removeEventListener('asadal:metaReward', handleMetaReward);
     };
   }, []);
 
-  useEffect(() => {
-    if (!containerRef.current || gameRef.current) {
-      return;
-    }
-
-    gameRef.current = bootAsadalGame(containerRef.current);
-
-    return () => {
+  useEffect(() => () => {
       if (gameRef.current) {
         gameRef.current.destroy(true);
         gameRef.current = null;
       }
-    };
   }, []);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(META_STORAGE_KEY, JSON.stringify(meta));
+    } catch (error) {
+      console.warn('영구 진행 데이터를 저장하지 못했습니다.', error);
+    }
+  }, [meta]);
+
+  const gamePhase = resolveGamePhase({
+    atHome: showIntro,
+    prologueStep,
+    tutorial: showTutorial,
+    chapter,
+    gameOver: hud.gameOver,
+    win: hud.win,
+    hasChoices: choices.length > 0,
+  });
+
+  useEffect(() => {
+    if (!gameReady) return;
+    window.dispatchEvent(new CustomEvent('asadal:setPaused', {
+      detail: { paused: isCombatPaused(gamePhase), phase: gamePhase },
+    }));
+  }, [gamePhase, gameReady]);
+
+  const prepareGame = async (setup) => {
+    runSetupRef.current = setup;
+    if (gameRef.current && gameReady) {
+      window.dispatchEvent(new CustomEvent('asadal:tribeSetup', { detail: setup }));
+      return;
+    }
+
+    setGameLoading(true);
+    setLoadError('');
+    try {
+      const { bootAsadalGame } = await import('./game/asadalGame');
+      const handleReady = () => {
+        setGameReady(true);
+        setGameLoading(false);
+        window.dispatchEvent(new CustomEvent('asadal:tribeSetup', { detail: runSetupRef.current }));
+      };
+      window.addEventListener('asadal:ready', handleReady, { once: true });
+      gameRef.current = bootAsadalGame(containerRef.current, { preloadTribes: [...setup.route, '호랑이'] });
+    } catch (error) {
+      setGameLoading(false);
+      setLoadError('전장 데이터를 불러오지 못했습니다. 다시 시도해 주세요.');
+      console.error(error);
+    }
+  };
+
   const startRun = () => {
-    const pair = pickTribePair();
-    setAlliedTribe(pair.alliedTribe);
-    setHostileTribe(pair.hostileTribe);
+    const setup = createRunSetup();
+    setAlliedTribe(setup.alliedTribe);
+    setHostileTribe(setup.hostileTribe);
+    setHud({ ...initialHud, route: setup.route });
+    setMeta((current) => recordRunStart(current));
     setShowIntro(false);
     setPrologueStep(0);
-    window.dispatchEvent(new CustomEvent('asadal:tribeSetup', {
-      detail: {
-        alliedTribe: pair.alliedTribe,
-        hostileTribe: pair.hostileTribe,
-      },
-    }));
+    prepareGame(setup);
   };
 
   const advancePrologue = () => {
@@ -182,8 +256,29 @@ function App() {
   };
 
   const beginRun = () => {
+    if (!gameReady) return;
     setShowTutorial(false);
-    window.dispatchEvent(new CustomEvent('asadal:startRun'));
+    window.dispatchEvent(new CustomEvent('asadal:startRun', {
+      detail: { trainingLevels: meta.trainingLevels },
+    }));
+  };
+
+  const returnHome = () => {
+    window.dispatchEvent(new CustomEvent('asadal:endRun'));
+    if (gameRef.current) {
+      gameRef.current.destroy(true);
+      gameRef.current = null;
+    }
+    setGameReady(false);
+    setGameLoading(false);
+    setHud(initialHud);
+    setChoices([]);
+    setChapter(null);
+    setPrologueStep(-1);
+    setShowTutorial(false);
+    setEndingStep(0);
+    setMenuView('home');
+    setShowIntro(true);
   };
 
   const continueChapter = () => {
@@ -228,7 +323,7 @@ function App() {
       <div className="game-panel">
         <div ref={containerRef} className="game-root" />
 
-        {!showIntro && !showTutorial && prologueStep < 0 && !chapter && (
+        {gamePhase === GAME_PHASE.PLAYING && (
           <header className="hud-bar" aria-label="게임 상태">
             <div className="hud-pill health-pill">
               <span className="label">체력</span>
@@ -255,7 +350,7 @@ function App() {
           </header>
         )}
 
-        {!showIntro && !showTutorial && prologueStep < 0 && !chapter && !hud.gameOver && !hud.win && choices.length === 0 && (
+        {gamePhase === GAME_PHASE.PLAYING && (
           <div
             ref={joystickRef}
             className="virtual-joystick"
@@ -292,7 +387,7 @@ function App() {
           </div>
         )}
 
-        {showIntro && (
+        {showIntro && menuView === 'home' && (
           <div className="overlay intro-overlay">
             <div className="panel-card intro-card">
               <div className="intro-copy">
@@ -308,14 +403,99 @@ function App() {
                   <span>생가죽 방패</span>
                   <span>곰 발톱 부적</span>
                 </div>
-                <button type="button" onClick={startRun}>
-                  이야기 시작
-                </button>
+                <div className="meta-summary" aria-label="영구 진행 현황">
+                  <span><strong>{meta.trainingPoints}</strong> 수련점</span>
+                  <span><strong>{meta.unlockedEndings.length}/{ENDINGS.length}</strong> 엔딩</span>
+                  <span><strong>{meta.runsStarted}</strong> 출정</span>
+                </div>
+                <div className="menu-actions">
+                  <button type="button" className="primary-action" onClick={startRun}>새 출정</button>
+                  <button type="button" onClick={() => setMenuView('training')}>곰의 수련</button>
+                  <button type="button" onClick={() => setMenuView('gallery')}>기억의 전당</button>
+                </div>
+                {loadError && <p className="load-error" role="alert">{loadError}</p>}
               </div>
               <div className="intro-art" aria-hidden="true">
                 <span className="totem-mark">熊</span>
                 <img src="/assets/ung-bear-warrior.png" alt="" />
               </div>
+            </div>
+          </div>
+        )}
+
+        {showIntro && menuView === 'training' && (
+          <div className="overlay menu-overlay">
+            <div className="panel-card meta-panel">
+              <div className="menu-heading">
+                <div>
+                  <p className="eyebrow">곰 부족 마을 · 영구 성장</p>
+                  <h2>곰의 수련</h2>
+                </div>
+                <span className="point-badge">수련점 {meta.trainingPoints}</span>
+              </div>
+              <p className="menu-description">투자한 수련은 모든 출정에 적용됩니다. 다음 레벨 비용은 1점부터 5점까지 증가합니다.</p>
+              <div className="training-list">
+                {TRAINING_ITEMS.map((training) => {
+                  const level = meta.trainingLevels[training.id];
+                  const cost = trainingCost(level);
+                  const canInvest = level < training.maxLevel && meta.trainingPoints >= cost;
+                  return (
+                    <div className="training-row" key={training.id}>
+                      <div className="training-copy">
+                        <div className="training-title">
+                          <strong>{training.name}</strong>
+                          <span>Lv.{level}/{training.maxLevel}</span>
+                        </div>
+                        <p>{training.description}</p>
+                        <div className="level-track" aria-label={`${training.name} ${level}레벨`}>
+                          {Array.from({ length: training.maxLevel }, (_, index) => (
+                            <span key={index} className={index < level ? 'filled' : ''} />
+                          ))}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={!canInvest}
+                        onClick={() => setMeta((current) => investTraining(current, training.id))}
+                      >
+                        {level >= training.maxLevel ? '완료' : `${cost}점 투자`}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="menu-footer-actions">
+                <button type="button" onClick={() => setMenuView('home')}>돌아가기</button>
+                <button type="button" onClick={() => setMeta((current) => refundTraining(current))}>전체 회수</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showIntro && menuView === 'gallery' && (
+          <div className="overlay menu-overlay">
+            <div className="panel-card meta-panel gallery-panel">
+              <div className="menu-heading">
+                <div>
+                  <p className="eyebrow">발견한 이야기</p>
+                  <h2>기억의 전당</h2>
+                </div>
+                <span className="point-badge">{meta.unlockedEndings.length}/{ENDINGS.length}</span>
+              </div>
+              <div className="ending-grid">
+                {ENDINGS.map((ending) => {
+                  const unlocked = meta.unlockedEndings.includes(ending.id);
+                  const scene = getEndingScenes(ending.id)[1];
+                  return (
+                    <article className={`ending-memory ${unlocked ? 'unlocked' : 'locked'}`} key={ending.id}>
+                      <span className="ending-code">{unlocked ? ending.code : '미발견'}</span>
+                      <h3>{unlocked ? ending.name : '잠긴 기억'}</h3>
+                      <p>{unlocked ? scene.body : ending.hint}</p>
+                    </article>
+                  );
+                })}
+              </div>
+              <button type="button" onClick={() => setMenuView('home')}>마을로 돌아가기</button>
             </div>
           </div>
         )}
@@ -363,8 +543,8 @@ function App() {
                 <li>수련은 영구적으로 투자되어 다음 판에도 이어집니다.</li>
                 <li>3스테이지마다 보스가 나타나고, 마지막에는 호랑이 부족과 맞서게 됩니다.</li>
               </ul>
-              <button type="button" onClick={beginRun}>
-                전투 시작
+              <button type="button" onClick={beginRun} disabled={!gameReady}>
+                {gameReady ? '전투 시작' : gameLoading ? '전장 준비 중…' : '전장 준비 실패'}
               </button>
             </div>
           </div>
@@ -393,8 +573,8 @@ function App() {
               <p className="eyebrow">전투 종료</p>
               <h2>웅은 쓰러졌다</h2>
               <p>부족의 힘을 다시 모아, 다음 판에서 아사달의 신화를 다시 쓸 수 있습니다.</p>
-              <button type="button" onClick={() => window.location.reload()}>
-                다시 시작
+              <button type="button" onClick={returnHome}>
+                곰 부족 마을로
               </button>
             </div>
           </div>
@@ -415,10 +595,10 @@ function App() {
                     type="button"
                     onClick={() => {
                       if (endingStep < endingScenes.length - 1) setEndingStep((step) => step + 1);
-                      else window.location.reload();
+                      else returnHome();
                     }}
                   >
-                    {endingStep < endingScenes.length - 1 ? '마지막 장면' : '새 이야기 시작'}
+                    {endingStep < endingScenes.length - 1 ? '마지막 장면' : '기억을 간직하고 귀환'}
                   </button>
                 </div>
               </div>

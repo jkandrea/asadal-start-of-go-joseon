@@ -1,0 +1,91 @@
+export const META_STORAGE_KEY = 'asadal.meta.v1';
+
+export const TRAINING_ITEMS = [
+  { id: 'claw', name: '곰의 발톱', description: '기본 공격력이 레벨마다 3% 증가합니다.', maxLevel: 5 },
+  { id: 'herb', name: '쑥의 향', description: '60초마다 최대 체력의 1.5% × 레벨만큼 회복합니다.', maxLevel: 5 },
+  { id: 'stomp', name: '마늘밭', description: '2초마다 주변 적에게 공격력의 10% × 레벨만큼 피해를 줍니다.', maxLevel: 5 },
+  { id: 'roar', name: '곰의 포효', description: '주기적으로 광역 피해와 넉백을 줍니다. 레벨마다 재사용 시간이 줄어듭니다.', maxLevel: 5 },
+  { id: 'mountain', name: '산의 힘', description: '최대 체력이 레벨마다 4% 증가합니다.', maxLevel: 5 },
+];
+
+export const ENDINGS = [
+  { id: 'asadal', code: '엔딩 A', name: '아사달', hint: '낮은 악명으로 호왕을 쓰러뜨리세요.' },
+  { id: 'conqueror', code: '엔딩 B', name: '정복자', hint: '높은 악명으로 호왕을 쓰러뜨리세요.' },
+];
+
+const emptyTraining = () => Object.fromEntries(TRAINING_ITEMS.map(({ id }) => [id, 0]));
+
+export const createInitialMeta = () => ({
+  version: 1,
+  trainingPoints: 5,
+  trainingLevels: emptyTraining(),
+  unlockedEndings: [],
+  runsStarted: 0,
+  victories: 0,
+  bossesDefeated: 0,
+});
+
+export const trainingCost = (currentLevel) => Math.min(5, Math.max(0, currentLevel) + 1);
+
+export function normalizeMeta(value) {
+  const base = createInitialMeta();
+  if (!value || typeof value !== 'object') return base;
+  return {
+    ...base,
+    trainingPoints: Math.max(0, Number(value.trainingPoints) || 0),
+    trainingLevels: Object.fromEntries(TRAINING_ITEMS.map(({ id, maxLevel }) => [
+      id,
+      Math.min(maxLevel, Math.max(0, Math.floor(Number(value.trainingLevels?.[id]) || 0))),
+    ])),
+    unlockedEndings: ENDINGS.map(({ id }) => id).filter((id) => value.unlockedEndings?.includes(id)),
+    runsStarted: Math.max(0, Math.floor(Number(value.runsStarted) || 0)),
+    victories: Math.max(0, Math.floor(Number(value.victories) || 0)),
+    bossesDefeated: Math.max(0, Math.floor(Number(value.bossesDefeated) || 0)),
+  };
+}
+
+export function investTraining(meta, trainingId) {
+  const current = normalizeMeta(meta);
+  const item = TRAINING_ITEMS.find(({ id }) => id === trainingId);
+  if (!item) return current;
+  const level = current.trainingLevels[trainingId];
+  const cost = trainingCost(level);
+  if (level >= item.maxLevel || current.trainingPoints < cost) return current;
+  return {
+    ...current,
+    trainingPoints: current.trainingPoints - cost,
+    trainingLevels: { ...current.trainingLevels, [trainingId]: level + 1 },
+  };
+}
+
+export function refundTraining(meta) {
+  const current = normalizeMeta(meta);
+  const refund = Object.values(current.trainingLevels)
+    .reduce((total, level) => total + (level * (level + 1)) / 2, 0);
+  return { ...current, trainingPoints: current.trainingPoints + refund, trainingLevels: emptyTraining() };
+}
+
+export function recordRunStart(meta) {
+  const current = normalizeMeta(meta);
+  return { ...current, runsStarted: current.runsStarted + 1 };
+}
+
+export function rewardBoss(meta, isFinalBoss = false) {
+  const current = normalizeMeta(meta);
+  return {
+    ...current,
+    trainingPoints: current.trainingPoints + 1 + (isFinalBoss ? 3 : 0),
+    bossesDefeated: current.bossesDefeated + 1,
+  };
+}
+
+export function unlockEnding(meta, endingId) {
+  const current = normalizeMeta(meta);
+  if (!ENDINGS.some(({ id }) => id === endingId) || current.unlockedEndings.includes(endingId)) return current;
+  return {
+    ...current,
+    trainingPoints: current.trainingPoints + 2,
+    victories: current.victories + 1,
+    unlockedEndings: [...current.unlockedEndings, endingId],
+  };
+}

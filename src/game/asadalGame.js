@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { canOfferLevelChoice, stageGoalFor } from '../gameFlow';
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
@@ -9,14 +10,6 @@ const skillCatalog = [
   { id: 'roar', name: '곰의 포효', description: '광역 넉백과 분노의 공격 세기를 얻습니다.', modifier: 'roar' },
   { id: 'mountain', name: '산의 힘', description: '최대 체력과 방어력을 증가시킵니다.', modifier: 'vigor' },
   { id: 'hare', name: '토끼의 발', description: '이동 속도를 증가하고 회피 시간이 길어집니다.', modifier: 'speed' },
-];
-
-const bearTrainingCatalog = [
-  { id: 'claw', name: '곰의 발톱', description: '기본 공격력이 3%씩 증가합니다. 최대 5레벨.', modifier: 'permanent_attack', maxLevel: 5 },
-  { id: 'herb', name: '쑥의 향', description: '60초마다 체력의 1.5%를 회복합니다.', modifier: 'permanent_heal', maxLevel: 5 },
-  { id: 'stomp', name: '마늘밭', description: '2초마다 주변 적에게 피해를 줍니다.', modifier: 'permanent_aura', maxLevel: 5 },
-  { id: 'roar', name: '곰의 포효', description: '20초마다 광역 넉백과 피해를 준다.', modifier: 'permanent_roar', maxLevel: 5 },
-  { id: 'mountain', name: '산의 힘', description: '최대 체력이 4%씩 증가합니다.', modifier: 'permanent_vigor', maxLevel: 5 },
 ];
 
 const mapSkillCatalog = {
@@ -149,11 +142,12 @@ const createPlayerState = () => ({
   facing: 1,
   runCycleTime: 0,
   healTimer: 0,
+  permanentHealTimer: 0,
   auraTimer: 0,
+  roarTimer: 0,
   poisonTimer: 0,
   poisonTickTimer: 0,
   rage: 0,
-  trainingPoints: 5,
   trainingLevels: {
     claw: 0,
     herb: 0,
@@ -216,9 +210,9 @@ function dispatchHud(state, stage, currentTribe) {
       alliedTribe: state.alliedTribe,
       hostileTribe: state.hostileTribe,
       reputation: state.reputation,
-      totalKills: 0,
+      totalKills: state.kills,
       gameOver: state.health <= 0,
-      running: true,
+      running: state.health > 0,
     },
   });
 
@@ -251,23 +245,6 @@ function emitChoices(tribeIndex = window.__asadalTribeIndex ?? 0) {
   }));
 }
 
-function emitTrainingChoices(player) {
-  window.dispatchEvent(new CustomEvent('asadal:skillChoices', {
-    detail: {
-      source: 'training',
-      choices: bearTrainingCatalog,
-      remaining: player.trainingPoints,
-      selected: bearTrainingCatalog
-        .filter((training) => (player.trainingLevels[training.id] ?? 0) > 0)
-        .map((training) => ({
-          ...training,
-          level: player.trainingLevels[training.id] ?? 0,
-        })),
-      label: '곰의 수련',
-    },
-  }));
-}
-
 function applyTribeTrait(player, tribeName) {
   const previous = player.tribeBonus || { speed: 0, damage: 0, maxHealth: 0, attackRange: 0, heal: 0 };
   player.speed -= previous.speed;
@@ -292,7 +269,10 @@ function showDefaultHud(stage, currentTribe, player) {
   dispatchHud(player, stage, currentTribe);
 }
 
-function bootAsadalGame(container) {
+function bootAsadalGame(container, options = {}) {
+  const preloadTribes = Array.isArray(options.preloadTribes) && options.preloadTribes.length > 0
+    ? [...new Set([...options.preloadTribes, '호랑이'])]
+    : Object.keys(enemyArchetypes);
   const config = {
     type: Phaser.AUTO,
     width: container.clientWidth || 540,
@@ -319,7 +299,7 @@ function bootAsadalGame(container) {
         this.load.image('ung-run-3', '/assets/ung-run-3.png');
         this.load.image('ung-run-4', '/assets/ung-run-4.png');
         this.load.image('ung-attack', '/assets/ung-attack.png');
-        Object.values(enemyArchetypes).forEach(({ texture }) => {
+        preloadTribes.map((tribe) => enemyArchetypes[tribe]).filter(Boolean).forEach(({ texture }) => {
           this.load.image(texture, `/assets/${texture}.png`);
           this.load.image(`${texture}-run-1`, `/assets/${texture}-run-1.png`);
           this.load.image(`${texture}-run-2`, `/assets/${texture}-run-2.png`);
@@ -339,11 +319,13 @@ function bootAsadalGame(container) {
         const floatingTexts = [];
         let userInput = { up: false, down: false, left: false, right: false };
         let spawnTimer = 0;
+        let hudUpdateTimer = 0;
         let stage = 1;
         let currentTribeIndex = 0;
         let bossSpawned = false;
         let skillSelectionOpen = false;
         let runStarted = false;
+        let gamePaused = true;
         let combo = 0;
         let worldTime = 0;
         let clearedFinalBoss = false;
@@ -378,7 +360,6 @@ function bootAsadalGame(container) {
           player.maxHealth += trait.maxHealth * 0.5;
           player.attackRange += trait.attackRange * 0.5;
           player.health = player.maxHealth;
-          player.tribeBonus = { ...trait };
         };
 
         const world = scene.add.rectangle(0, 0, 1400, 900, 0x17120d).setOrigin(0, 0);
@@ -497,15 +478,6 @@ function bootAsadalGame(container) {
         function updateStageGoalText() {
           const goalLabel = bossSpawned ? '보스 처치' : '적';
           stageObjectiveText.setText(`목표: ${goalLabel} ${stageGoal}마리 처치 • ${Math.min(player.kills, stageGoal)}/${stageGoal}`);
-        }
-
-        function getTrainingSummary() {
-          return bearTrainingCatalog
-            .filter((training) => (player.trainingLevels[training.id] ?? 0) > 0)
-            .map((training) => ({
-              ...training,
-              level: player.trainingLevels[training.id] ?? 0,
-            }));
         }
 
         function spawnFloatingText(x, y, value, color = '#f9d38d') {
@@ -636,7 +608,7 @@ function bootAsadalGame(container) {
           const currentTribe = currentTribeName + ' 부족';
           currentBattleTribe = currentTribeName;
           stageLabel.setText(currentTribe);
-          stageGoal = bossSpawned ? 1 : Math.max(5, stage * 4 + 2);
+          stageGoal = stageGoalFor(stage, bossSpawned);
           player.kills = 0;
           nextStageQueued = false;
           stageAdvanceReady = false;
@@ -718,7 +690,7 @@ function bootAsadalGame(container) {
         }
 
         function createEnemyBurst(centerX, centerY, isBoss = false) {
-          const enemyCount = isBoss ? 1 : 4 + Math.min(6, stage * 2);
+          const enemyCount = isBoss ? 1 : Math.min(4, 2 + Math.ceil(stage / 2));
           for (let i = 0; i < enemyCount; i += 1) {
             const angle = (Math.PI * 2 * i) / enemyCount + Math.random() * 0.8;
             const distance = isBoss ? 120 : 280 + Math.random() * 180;
@@ -785,6 +757,7 @@ function bootAsadalGame(container) {
           bossText.setText('호랑이 부족을 쓰러뜨렸다. 아사달의 신화가 시작된다');
           bossText.setVisible(true);
           stageLabel.setText('호랑이 부족');
+          window.dispatchEvent(new CustomEvent('asadal:clearChoices'));
           window.dispatchEvent(new CustomEvent('asadal:state', {
             detail: {
               health: Math.max(1, player.health),
@@ -834,6 +807,9 @@ function bootAsadalGame(container) {
             updateStageGoalText();
             if (enemy.type === 'boss') {
               bossSpawned = false;
+              window.dispatchEvent(new CustomEvent('asadal:metaReward', {
+                detail: { type: 'boss', final: stage >= 6 },
+              }));
               if (stage >= 5) {
                 triggerVictory();
               }
@@ -856,6 +832,7 @@ function bootAsadalGame(container) {
         }
 
         function levelUp() {
+          if (!canOfferLevelChoice({ clearedFinalBoss, health: player.health, finalStage: stage >= 6 })) return;
           while (player.xp >= player.xpToNext) {
             player.xp -= player.xpToNext;
             player.level += 1;
@@ -865,54 +842,9 @@ function bootAsadalGame(container) {
           }
         }
 
-        function applyPermanentTraining(skillId) {
-          const training = bearTrainingCatalog.find((item) => item.id === skillId);
-          if (!training || player.trainingPoints <= 0) return;
-
-          const currentLevel = player.trainingLevels[skillId] ?? 0;
-          if (currentLevel >= training.maxLevel) return;
-
-          player.trainingLevels[skillId] = currentLevel + 1;
-          player.trainingPoints -= 1;
-
-          switch (skillId) {
-            case 'claw':
-              player.damage *= 1.03;
-              break;
-            case 'herb':
-              player.maxHealth += 8;
-              player.health = Math.min(player.maxHealth, player.health + 10);
-              break;
-            case 'stomp':
-              player.skillState.aura += 1;
-              break;
-            case 'roar':
-              player.skillState.roar += 1;
-              player.damage += 2;
-              break;
-            case 'mountain':
-              player.maxHealth *= 1.04;
-              player.health = Math.min(player.maxHealth, player.health + 12);
-              break;
-            default:
-              break;
-          }
-
-          if (player.trainingPoints <= 0) {
-            skillSelectionOpen = false;
-            window.dispatchEvent(new CustomEvent('asadal:clearChoices'));
-            setStageState(1);
-            window.dispatchEvent(new CustomEvent('asadal:start'));
-            return;
-          }
-
-          emitTrainingChoices(player);
-        }
-
         function applySkill(skillId) {
           const skill = skillCatalog.find((item) => item.id === skillId)
-            || (mapSkillCatalog[tribeNames[currentTribeIndex]] || []).find((item) => item.id === skillId)
-            || bearTrainingCatalog.find((item) => item.id === skillId);
+            || (mapSkillCatalog[tribeNames[currentTribeIndex]] || []).find((item) => item.id === skillId);
           if (!skill) return;
 
           switch (skill.modifier) {
@@ -1312,6 +1244,7 @@ function bootAsadalGame(container) {
                   player.hitPoseTimer = 180;
                   scene.cameras.main.shake(70, 0.0025);
                   spawnFloatingText(playerBody.x, playerBody.y - 18, '-10', '#ff7e50');
+                  triggerPlayerDefeat();
                 }
               }
 
@@ -1506,17 +1439,22 @@ function bootAsadalGame(container) {
         };
 
         const onTribeSetup = (event) => {
-          const { alliedTribe, hostileTribe } = event.detail || {};
+          const { alliedTribe, hostileTribe, route } = event.detail || {};
           alliedTribeIndex = tribeNames.indexOf(alliedTribe || tribeNames[0]);
           hostileTribeIndex = tribeNames.indexOf(hostileTribe || tribeNames[1]);
           resolveTribeIndexes();
           player.alliedTribe = tribeNames[alliedTribeIndex];
           player.hostileTribe = tribeNames[hostileTribeIndex];
           const hostileName = tribeNames[hostileTribeIndex];
-          const remainingTribes = shuffle(
-            tribeNames.filter((name) => name !== player.alliedTribe && name !== hostileName),
-          );
-          stageTribeOrder = [hostileName, ...remainingTribes.slice(0, 4)];
+          const validRoute = Array.isArray(route)
+            ? route.filter((name) => tribeNames.includes(name) && name !== player.alliedTribe).slice(0, 5)
+            : [];
+          const remainingTribes = shuffle(tribeNames.filter(
+            (name) => name !== player.alliedTribe && name !== hostileName && !validRoute.includes(name),
+          ));
+          stageTribeOrder = validRoute.length === 5
+            ? validRoute
+            : [hostileName, ...remainingTribes].filter((name, index, list) => list.indexOf(name) === index).slice(0, 5);
           window.dispatchEvent(new CustomEvent('asadal:state', {
             detail: {
               alliedTribe: player.alliedTribe,
@@ -1526,26 +1464,16 @@ function bootAsadalGame(container) {
           }));
         };
 
-        const onStartRun = () => {
+        const onStartRun = (event) => {
           runStarted = true;
+          gamePaused = false;
           worldTime = 0;
-          player.trainingPoints = 5;
-          player.trainingLevels = {
-            claw: 0,
-            herb: 0,
-            stomp: 0,
-            roar: 0,
-            mountain: 0,
-          };
+          const freshPlayer = createPlayerState();
+          Object.assign(player, freshPlayer);
+          player.trainingLevels = { ...freshPlayer.trainingLevels, ...(event.detail?.trainingLevels || {}) };
+          player.damage *= 1 + player.trainingLevels.claw * 0.03;
+          player.maxHealth *= 1 + player.trainingLevels.mountain * 0.04;
           player.health = player.maxHealth;
-          player.xp = 0;
-          player.level = 1;
-          player.reputation = 0;
-          player.kills = 0;
-          player.attackPoseTimer = 0;
-          player.hitPoseTimer = 0;
-          player.facing = 1;
-          player.runCycleTime = 0;
           playerPose = 'idle';
           playerTexture = 'ung-warrior';
           lastRunFrame = -1;
@@ -1579,9 +1507,8 @@ function bootAsadalGame(container) {
           if (playerBody) {
             playerBody.setPosition(200, 300);
           }
-          skillSelectionOpen = true;
-          stageLabel.setText(`${tribeNames[alliedTribeIndex]} 부족`);
-          stageObjectiveText.setText('수련을 선택하세요');
+          skillSelectionOpen = false;
+          setStageState(1);
           window.dispatchEvent(new CustomEvent('asadal:state', {
             detail: {
               health: player.health,
@@ -1601,16 +1528,27 @@ function bootAsadalGame(container) {
               route: [...stageTribeOrder],
             },
           }));
-          emitTrainingChoices(player);
         };
 
         const onChooseSkill = (event) => {
           const { id, source = 'map' } = event.detail || {};
-          if (source === 'training') {
-            applyPermanentTraining(id);
-            return;
-          }
           applySkill(id);
+        };
+
+        const onSetPaused = (event) => {
+          gamePaused = Boolean(event.detail?.paused);
+          if (gamePaused) resetMovementInput();
+        };
+
+        const onEndRun = () => {
+          runStarted = false;
+          gamePaused = true;
+          skillSelectionOpen = false;
+          enemies.forEach((enemy) => destroyEnemyVisual(enemy));
+          enemies.splice(0, enemies.length);
+          projectiles.forEach((projectile) => projectile.orb?.destroy());
+          projectiles.splice(0, projectiles.length);
+          resetMovementInput();
         };
 
         const onContinueStory = () => {
@@ -1628,6 +1566,8 @@ function bootAsadalGame(container) {
         window.addEventListener('asadal:startRun', onStartRun);
         window.addEventListener('asadal:chooseSkill', onChooseSkill);
         window.addEventListener('asadal:continueStory', onContinueStory);
+        window.addEventListener('asadal:setPaused', onSetPaused);
+        window.addEventListener('asadal:endRun', onEndRun);
 
         scene.events.on('shutdown', () => {
           scene.scale.off('resize', positionCanvasHud);
@@ -1640,7 +1580,11 @@ function bootAsadalGame(container) {
           window.removeEventListener('asadal:startRun', onStartRun);
           window.removeEventListener('asadal:chooseSkill', onChooseSkill);
           window.removeEventListener('asadal:continueStory', onContinueStory);
+          window.removeEventListener('asadal:setPaused', onSetPaused);
+          window.removeEventListener('asadal:endRun', onEndRun);
         });
+
+        window.dispatchEvent(new CustomEvent('asadal:ready'));
 
         showDefaultHud(stage, tribeNames[currentTribeIndex] + ' 부족', player);
 
@@ -1653,7 +1597,7 @@ function bootAsadalGame(container) {
         });
 
         this.events.on('update', (time, delta) => {
-          if (!runStarted) {
+          if (!runStarted || gamePaused) {
             return;
           }
 
@@ -1784,6 +1728,44 @@ function bootAsadalGame(container) {
               }
             }
 
+            const herbLevel = player.trainingLevels.herb;
+            if (herbLevel > 0) {
+              player.permanentHealTimer += delta;
+              if (player.permanentHealTimer >= 60000) {
+                player.health = Math.min(player.maxHealth, player.health + player.maxHealth * 0.015 * herbLevel);
+                player.permanentHealTimer = 0;
+                spawnFloatingText(playerBody.x, playerBody.y - 22, '쑥의 회복', '#8ef1a7');
+              }
+            }
+
+            const stompLevel = player.trainingLevels.stomp;
+            if (stompLevel > 0) {
+              player.auraTimer += delta;
+              if (player.auraTimer >= 2000) {
+                enemies.forEach((enemy) => {
+                  if (!enemy.defeated && Phaser.Math.Distance.Between(playerBody.x, playerBody.y, enemy.x, enemy.y) <= 125) {
+                    damageEnemy(enemy, player.damage * 0.1 * stompLevel, 8);
+                  }
+                });
+                player.auraTimer = 0;
+              }
+            }
+
+            const roarLevel = player.trainingLevels.roar;
+            if (roarLevel > 0) {
+              player.roarTimer += delta;
+              const roarCooldown = (22 - roarLevel * 2) * 1000;
+              if (player.roarTimer >= roarCooldown) {
+                enemies.forEach((enemy) => {
+                  if (!enemy.defeated && Phaser.Math.Distance.Between(playerBody.x, playerBody.y, enemy.x, enemy.y) <= 165) {
+                    damageEnemy(enemy, player.damage * 0.2, 30);
+                  }
+                });
+                player.roarTimer = 0;
+                spawnFloatingText(playerBody.x, playerBody.y - 22, '곰의 포효', '#ffd38d');
+              }
+            }
+
             spawnTimer += delta;
             if (spawnTimer >= 1200) {
               spawnWave();
@@ -1815,6 +1797,12 @@ function bootAsadalGame(container) {
 
             if (player.xp >= player.xpToNext) {
               levelUp();
+            }
+
+            hudUpdateTimer += delta;
+            if (hudUpdateTimer >= 200 && !clearedFinalBoss) {
+              dispatchHud(player, stage, `${currentBattleTribe} 부족`);
+              hudUpdateTimer = 0;
             }
           }
 

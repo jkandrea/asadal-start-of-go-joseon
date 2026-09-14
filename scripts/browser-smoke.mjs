@@ -1,0 +1,82 @@
+const endpoint = process.argv[2] || 'http://127.0.0.1:9223/json';
+const pages = await fetch(endpoint).then((response) => response.json());
+const page = pages.find((item) => item.type === 'page' && item.url.includes('127.0.0.1:3000')) || pages[0];
+if (!page?.webSocketDebuggerUrl) throw new Error('No debuggable browser page found');
+
+const socket = new WebSocket(page.webSocketDebuggerUrl);
+await new Promise((resolve, reject) => {
+  socket.addEventListener('open', resolve, { once: true });
+  socket.addEventListener('error', reject, { once: true });
+});
+
+let messageId = 0;
+const pending = new Map();
+socket.addEventListener('message', (event) => {
+  const message = JSON.parse(event.data);
+  if (!message.id || !pending.has(message.id)) return;
+  const { resolve, reject } = pending.get(message.id);
+  pending.delete(message.id);
+  if (message.error) reject(new Error(message.error.message));
+  else resolve(message.result);
+});
+
+const command = (method, params = {}) => new Promise((resolve, reject) => {
+  const id = ++messageId;
+  pending.set(id, { resolve, reject });
+  socket.send(JSON.stringify({ id, method, params }));
+});
+
+const evaluate = async (expression) => {
+  const result = await command('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+  if (result.exceptionDetails) throw new Error(result.exceptionDetails.text);
+  return result.result.value;
+};
+
+const waitFor = async (expression, timeout = 30000) => {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeout) {
+    if (await evaluate(expression)) return;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  throw new Error(`Timed out waiting for: ${expression}`);
+};
+
+const clickButton = async (label) => {
+  const clicked = await evaluate(`(() => { const button = [...document.querySelectorAll('button')].find((item) => item.textContent.includes(${JSON.stringify(label)})); if (!button) return false; button.click(); return true; })()`);
+  if (!clicked) throw new Error(`Button not found: ${label}`);
+};
+
+await evaluate("localStorage.removeItem('asadal.meta.v1'); location.reload(); true");
+await waitFor("document.body.innerText.includes('새 출정')");
+await clickButton('곰의 수련');
+await waitFor("document.body.innerText.includes('전체 회수')");
+await clickButton('1점 투자');
+const savedLevel = await evaluate(`JSON.parse(localStorage.getItem('asadal.meta.v1')).trainingLevels.claw`);
+if (savedLevel !== 1) throw new Error('Training investment was not persisted');
+await clickButton('돌아가기');
+await clickButton('기억의 전당');
+await waitFor("document.querySelectorAll('.ending-memory').length === 2");
+await clickButton('마을로 돌아가기');
+await clickButton('새 출정');
+await waitFor("document.body.innerText.includes('프롤로그')");
+await new Promise((resolve) => setTimeout(resolve, 2500));
+const prematureDefeat = await evaluate("document.body.innerText.includes('웅은 쓰러졌다')");
+if (prematureDefeat) throw new Error('Combat advanced behind the prologue');
+await clickButton('다음 장면');
+await clickButton('다음 장면');
+await clickButton('원정 준비');
+await waitFor("[...document.querySelectorAll('button')].some((button) => button.textContent.includes('전투 시작') && !button.disabled)", 60000);
+await clickButton('전투 시작');
+await waitFor("document.querySelector('.hud-bar') !== null");
+
+const result = await evaluate(`({
+  health: document.querySelector('.health-pill strong')?.textContent.trim(),
+  stage: [...document.querySelectorAll('.hud-pill')][2]?.querySelector('strong')?.textContent.trim(),
+  choices: document.querySelectorAll('.choice-overlay').length,
+  errors: document.querySelectorAll('[role="alert"]').length,
+})`);
+if (!result.health || result.stage !== '1' || result.errors > 0) throw new Error(`Unexpected game state: ${JSON.stringify(result)}`);
+if (Number.parseFloat(result.health) < 100) throw new Error(`Player max health regressed below its base value: ${result.health}`);
+
+console.log(JSON.stringify({ ok: true, ...result }));
+socket.close();
