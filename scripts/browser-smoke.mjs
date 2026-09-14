@@ -55,7 +55,7 @@ const savedLevel = await evaluate(`JSON.parse(localStorage.getItem('asadal.meta.
 if (savedLevel !== 1) throw new Error('Training investment was not persisted');
 await clickButton('돌아가기');
 await clickButton('기억의 전당');
-await waitFor("document.querySelectorAll('.ending-memory').length === 2");
+await waitFor("document.querySelectorAll('.ending-memory').length === 7");
 await clickButton('마을로 돌아가기');
 await clickButton('새 출정');
 await waitFor("document.body.innerText.includes('프롤로그')");
@@ -77,6 +77,20 @@ const result = await evaluate(`({
 })`);
 if (!result.health || result.stage !== '1' || result.errors > 0) throw new Error(`Unexpected game state: ${JSON.stringify(result)}`);
 if (Number.parseFloat(result.health) < 100) throw new Error(`Player max health regressed below its base value: ${result.health}`);
+
+await evaluate("window.dispatchEvent(new CustomEvent('asadal:tribeDecision', { detail: { tribe: '양', defeated: 4, remaining: 3, reputation: 4 } })); true");
+await waitFor("document.body.innerText.includes('남은 전사들이 무기를 내리려 한다')");
+await clickButton('끝까지 제압한다');
+await waitFor("document.querySelector('.decision-panel') === null");
+
+await evaluate("window.dispatchEvent(new CustomEvent('asadal:tribeReward', { detail: { tribe: '돼지', power: { id: 'power', name: '풍요의 몫', description: '고유 능력' }, follower: { id: 'follower', name: '복주머니 짐꾼', description: '부하' } } })); true");
+await waitFor("document.body.innerText.includes('다음 여정에 가져갈 힘')");
+await clickButton('풍요의 몫');
+await waitFor("document.querySelector('.reward-panel') === null");
+
+await evaluate("window.dispatchEvent(new CustomEvent('asadal:travel', { detail: { from: '양', to: '돼지', stage: 2 } })); true");
+await waitFor("document.querySelector('.travel-scene') !== null");
+await waitFor("document.querySelector('.travel-scene') === null", 5000);
 
 console.log(JSON.stringify({ ok: true, ...result }));
 socket.close();

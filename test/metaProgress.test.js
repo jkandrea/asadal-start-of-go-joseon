@@ -11,8 +11,11 @@ import {
 import {
   GAME_PHASE,
   canOfferLevelChoice,
+  enemyRunFrame,
+  filterSkillsByPrerequisite,
   isCombatPaused,
   resolveGamePhase,
+  resolveEnding,
   stageGoalFor,
 } from '../src/gameFlow.js';
 
@@ -60,4 +63,28 @@ test('the final boss cannot open another tribe choice', () => {
 
 test('stage goals keep a full run moving without changing boss goals', () => {
   assert.deepEqual([1, 2, 3, 4, 5, 6].map((stage) => stageGoalFor(stage, stage % 3 === 0)), [7, 9, 1, 13, 15, 1]);
+});
+
+test('seven ending routes resolve from run history', () => {
+  assert.equal(resolveEnding({ reputation: 8, sparedTribes: 4, followers: 2, runsStarted: 1 }), 'asadal');
+  assert.equal(resolveEnding({ reputation: 75, sparedTribes: 0, followers: 0, runsStarted: 1 }), 'conqueror');
+  assert.equal(resolveEnding({ reputation: 40, sparedTribes: 0, followers: 0, runsStarted: 1 }), 'rebellion');
+  assert.equal(resolveEnding({ reputation: 20, sparedTribes: 4, followers: 0, runsStarted: 1 }), 'bear_return');
+  assert.equal(resolveEnding({ reputation: 20, sparedTribes: 2, followers: 0, runsStarted: 2 }), 'hwanung_parting');
+  assert.equal(resolveEnding({ reputation: 20, sparedTribes: 2, followers: 0, runsStarted: 1 }), 'tiger_heir');
+  assert.equal(resolveEnding({ reputation: 0, sparedTribes: 3, followers: 1, runsStarted: 3, foundForgottenTribe: true }), 'forgotten_tribe');
+});
+
+test('slow sheep and boar archetypes alternate their running frames', () => {
+  assert.deepEqual([enemyRunFrame(0, 0.74), enemyRunFrame(190, 0.74)], [1, 2]);
+  assert.deepEqual([enemyRunFrame(0, 0.68), enemyRunFrame(190, 0.68)], [1, 2]);
+});
+
+test('poison and flame enhancers require their base weapon effect', () => {
+  const skills = [
+    { id: 'poison', requires: undefined },
+    { id: 'cold-blood', requires: 'poison' },
+  ];
+  assert.deepEqual(filterSkillsByPrerequisite(skills, {}).map(({ id }) => id), ['poison']);
+  assert.deepEqual(filterSkillsByPrerequisite(skills, { poison: 1 }).map(({ id }) => id), ['poison', 'cold-blood']);
 });

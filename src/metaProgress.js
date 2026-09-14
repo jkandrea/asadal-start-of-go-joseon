@@ -9,8 +9,13 @@ export const TRAINING_ITEMS = [
 ];
 
 export const ENDINGS = [
-  { id: 'asadal', code: '엔딩 A', name: '아사달', hint: '낮은 악명으로 호왕을 쓰러뜨리세요.' },
-  { id: 'conqueror', code: '엔딩 B', name: '정복자', hint: '높은 악명으로 호왕을 쓰러뜨리세요.' },
+  { id: 'asadal', code: '엔딩 A · 진엔딩', name: '아사달', hint: '네 부족 이상을 살리고 동료들과 낮은 악명으로 호왕을 쓰러뜨리세요.' },
+  { id: 'conqueror', code: '엔딩 B', name: '정복자', hint: '악명 70 이상으로 호왕을 쓰러뜨리세요.' },
+  { id: 'rebellion', code: '엔딩 C', name: '다섯 부족의 반란', hint: '자비 없이 전진하되 공포가 완전히 굳기 전에 호왕을 쓰러뜨리세요.' },
+  { id: 'tiger_heir', code: '엔딩 D', name: '호랑이의 마지막 새끼', hint: '아직 다른 결말의 조건을 갖추지 못한 채 호왕을 쓰러뜨리세요.' },
+  { id: 'bear_return', code: '엔딩 E', name: '곰의 귀환', hint: '대부분의 부족을 살리고 고향으로 돌아갈 길을 남기세요.' },
+  { id: 'hwanung_parting', code: '엔딩 F', name: '환웅을 만났지만', hint: '두 번째 출정 이후 낮은 악명으로 환웅을 만나세요.' },
+  { id: 'forgotten_tribe', code: '엔딩 G', name: '잊힌 부족', hint: '원정 중 아주 드문 잊힌 부족의 흔적을 발견하세요.' },
 ];
 
 const emptyTraining = () => Object.fromEntries(TRAINING_ITEMS.map(({ id }) => [id, 0]));

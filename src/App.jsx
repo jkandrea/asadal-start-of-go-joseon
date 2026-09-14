@@ -65,31 +65,60 @@ const prologueScenes = [
   },
 ];
 
-const getEndingScenes = (ending) => ending === 'conqueror'
-  ? [
-      {
-        eyebrow: '결말 · 무너진 호왕',
-        title: '거짓말은 끝났지만 두려움은 남았다',
-        body: '호왕의 창이 부러지고 거짓 소문도 드러났다. 그러나 필요 이상으로 쌓인 희생은 다른 부족들의 눈에 또 하나의 공포가 되었다.',
-      },
-      {
-        eyebrow: '엔딩 B · 정복자',
-        title: '호랑이를 몰아낸 자가 그 자리를 차지했다',
-        body: '웅은 승리했지만 부족들은 무기를 내려놓지 않았다. 아사달은 연맹이 아니라, 가장 강한 전사를 두려워하는 땅으로 기억되었다.',
-      },
-    ]
-  : [
-      {
-        eyebrow: '결말 · 무너진 호왕',
-        title: '다섯 부족이 진실을 보았다',
-        body: '호왕의 창이 부러지자 거짓 소문도 힘을 잃었다. 절제된 싸움을 지켜본 부족들은 마침내 무기를 내려놓고 같은 불가에 모였다.',
-      },
-      {
-        eyebrow: '엔딩 A · 아사달',
-        title: '서로 다른 토템 아래, 하나의 터전이 시작되었다',
-        body: '웅은 왕이 되지 않았다. 대신 부족들이 함께 지킬 질서를 세웠다. 훗날 사람들은 그 첫 마을과 약속을 아사달이라 불렀다.',
-      },
-    ];
+const endingStories = {
+  asadal: {
+    title: '서로 다른 토템 아래, 하나의 터전이 시작되었다',
+    body: '환웅과 웅, 그리고 뜻을 모은 부족들은 새로운 나라를 세웠다. 그 뒤를 이은 단군왕검은 사람을 널리 이롭게 한다는 뜻으로 고조선을 열었다.',
+    epilogue: '이 이야기는 훗날 곰과 호랑이의 우화로 표현된 고조선 건국 설화가 되어 오래도록 전해 내려갔다고 한다.',
+  },
+  conqueror: {
+    title: '호랑이를 몰아낸 자가 그 자리를 차지했다',
+    body: '웅은 승리했지만 부족들은 무기를 내려놓지 않았다. 가장 강한 전사를 두려워하는 땅만 남았다.',
+    epilogue: '호랑이가 실패한 일을 곰이 해냈다. 그러나 그곳에는 함께 세운 나라가 없었다.',
+  },
+  rebellion: {
+    title: '전쟁에서 이겼지만 세상을 얻지는 못했다',
+    body: '호왕은 쓰러졌으나 살아남은 부족들은 웅을 새로운 폭군으로 여겼다. 다섯 토템이 동시에 반란의 불을 밝혔다.',
+    epilogue: '승리한 전사는 다시 끝나지 않는 전쟁의 한가운데에 섰다.',
+  },
+  tiger_heir: {
+    title: '숲속에서 어린 포효가 들렸다',
+    body: '호왕에게는 마지막 후계자가 남아 있었다. 웅은 그 아이를 베지 않았고, 끝난 전쟁 뒤에 또 다른 이야기가 자라기 시작했다.',
+    epilogue: '그 선택이 복수의 씨앗인지 화해의 시작인지는 아직 아무도 몰랐다.',
+  },
+  bear_return: {
+    title: '웅은 왕좌 대신 고향으로 돌아갔다',
+    body: '살아남은 부족들은 스스로 화해의 질서를 만들었다. 웅은 쑥과 마늘 향이 피어나는 곰 부족의 산으로 돌아갔다.',
+    epilogue: '왕이 되지 않은 영웅의 이름은 평화가 필요할 때마다 불렸다.',
+  },
+  hwanung_parting: {
+    title: '환웅을 만났지만, 두 사람은 다른 길을 택했다',
+    body: '환웅은 하늘의 뜻을 말했고 웅은 아직 땅의 상처가 남았다고 답했다. 둘은 다시 만날 날을 약속했다.',
+    epilogue: '완성되지 않은 만남은 다음 회차에서 진정한 건국으로 이어질 실마리가 되었다.',
+  },
+  forgotten_tribe: {
+    title: '열두 토템 밖의 이름 없는 사람들이 나타났다',
+    body: '기록에서 지워진 부족은 호랑이의 거짓말보다 오래된 진실을 전했다. 웅은 알려진 신화 바깥의 역사를 마주했다.',
+    epilogue: '역사는 강한 자뿐 아니라 끝내 기억된 자의 것이기도 했다.',
+  },
+};
+
+const getEndingScenes = (ending) => {
+  const endingMeta = ENDINGS.find(({ id }) => id === ending) || ENDINGS[3];
+  const story = endingStories[ending] || endingStories.tiger_heir;
+  return [
+    {
+      eyebrow: '결말 · 무너진 호왕',
+      title: story.title,
+      body: story.body,
+    },
+    {
+      eyebrow: endingMeta.code,
+      title: endingMeta.name,
+      body: story.epilogue,
+    },
+  ];
+};
 
 function App() {
   const containerRef = useRef(null);
@@ -115,6 +144,10 @@ function App() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [prologueStep, setPrologueStep] = useState(-1);
   const [chapter, setChapter] = useState(null);
+  const [tribeDecision, setTribeDecision] = useState(null);
+  const [tribeReward, setTribeReward] = useState(null);
+  const [travel, setTravel] = useState(null);
+  const [tribeNotice, setTribeNotice] = useState('');
   const [endingStep, setEndingStep] = useState(0);
   const [alliedTribe, setAlliedTribe] = useState('쥐');
   const [hostileTribe, setHostileTribe] = useState('호랑이');
@@ -132,6 +165,9 @@ function App() {
       if (detail.win) {
         setEndingStep(0);
         setChoices([]);
+        setTribeDecision(null);
+        setTribeReward(null);
+        setTravel(null);
         setMeta((current) => unlockEnding(current, detail.ending));
       }
       setHud((previous) => ({ ...previous, ...detail }));
@@ -163,11 +199,25 @@ function App() {
       }
     };
 
+    const handleTribeDecision = (event) => setTribeDecision(event.detail || null);
+    const handleTribeReward = (event) => setTribeReward(event.detail || null);
+    const clearTribeReward = () => setTribeReward(null);
+    const handleTravel = (event) => setTravel(event.detail || null);
+    const handleTribeEvent = (event) => {
+      setTribeNotice(event.detail?.text || '부족의 마음이 움직였습니다.');
+      window.setTimeout(() => setTribeNotice(''), 4200);
+    };
+
     window.addEventListener('asadal:state', handleHud);
     window.addEventListener('asadal:skillChoices', handleChoices);
     window.addEventListener('asadal:clearChoices', clearChoices);
     window.addEventListener('asadal:story', handleChapter);
     window.addEventListener('asadal:metaReward', handleMetaReward);
+    window.addEventListener('asadal:tribeDecision', handleTribeDecision);
+    window.addEventListener('asadal:tribeReward', handleTribeReward);
+    window.addEventListener('asadal:clearTribeReward', clearTribeReward);
+    window.addEventListener('asadal:travel', handleTravel);
+    window.addEventListener('asadal:tribeEvent', handleTribeEvent);
 
     return () => {
       window.removeEventListener('asadal:state', handleHud);
@@ -175,6 +225,11 @@ function App() {
       window.removeEventListener('asadal:clearChoices', clearChoices);
       window.removeEventListener('asadal:story', handleChapter);
       window.removeEventListener('asadal:metaReward', handleMetaReward);
+      window.removeEventListener('asadal:tribeDecision', handleTribeDecision);
+      window.removeEventListener('asadal:tribeReward', handleTribeReward);
+      window.removeEventListener('asadal:clearTribeReward', clearTribeReward);
+      window.removeEventListener('asadal:travel', handleTravel);
+      window.removeEventListener('asadal:tribeEvent', handleTribeEvent);
     };
   }, []);
 
@@ -201,6 +256,9 @@ function App() {
     gameOver: hud.gameOver,
     win: hud.win,
     hasChoices: choices.length > 0,
+    hasDecision: Boolean(tribeDecision),
+    hasReward: Boolean(tribeReward),
+    travelling: Boolean(travel),
   });
 
   useEffect(() => {
@@ -209,6 +267,15 @@ function App() {
       detail: { paused: isCombatPaused(gamePhase), phase: gamePhase },
     }));
   }, [gamePhase, gameReady]);
+
+  useEffect(() => {
+    if (!travel) return undefined;
+    const timer = window.setTimeout(() => {
+      setTravel(null);
+      window.dispatchEvent(new CustomEvent('asadal:continueTravel'));
+    }, 2400);
+    return () => window.clearTimeout(timer);
+  }, [travel]);
 
   const prepareGame = async (setup) => {
     runSetupRef.current = setup;
@@ -259,7 +326,7 @@ function App() {
     if (!gameReady) return;
     setShowTutorial(false);
     window.dispatchEvent(new CustomEvent('asadal:startRun', {
-      detail: { trainingLevels: meta.trainingLevels },
+      detail: { trainingLevels: meta.trainingLevels, runsStarted: meta.runsStarted },
     }));
   };
 
@@ -274,6 +341,10 @@ function App() {
     setHud(initialHud);
     setChoices([]);
     setChapter(null);
+    setTribeDecision(null);
+    setTribeReward(null);
+    setTravel(null);
+    setTribeNotice('');
     setPrologueStep(-1);
     setShowTutorial(false);
     setEndingStep(0);
@@ -288,6 +359,18 @@ function App() {
 
   const selectSkill = (skillId) => {
     window.dispatchEvent(new CustomEvent('asadal:chooseSkill', { detail: { id: skillId, source: choiceSource } }));
+  };
+
+  const chooseTribeDecision = (choice) => {
+    setTribeDecision(null);
+    window.dispatchEvent(new CustomEvent('asadal:tribeDecisionChoice', { detail: { choice } }));
+  };
+
+  const chooseTribeReward = (choice) => {
+    if (!tribeReward) return;
+    window.dispatchEvent(new CustomEvent('asadal:chooseTribeReward', {
+      detail: { choice, tribe: tribeReward.tribe },
+    }));
   };
 
   const updateStickFromPointer = (clientX, clientY) => {
@@ -540,6 +623,8 @@ function App() {
               <ul className="tutorial-list">
                 <li>조이스틱으로 이동하고, 공격 범위 안에서 적을 처치하세요.</li>
                 <li>레벨업 시 선택지는 부족의 가르침이 나오며, 현재 판에만 적용됩니다.</li>
+                <li>전투 중 부족이 흔들리면 끝까지 싸우거나 설득해 악명을 낮출 수 있습니다.</li>
+                <li>부족을 넘을 때 고유 능력 또는 함께 싸울 부하를 선택합니다.</li>
                 <li>수련은 영구적으로 투자되어 다음 판에도 이어집니다.</li>
                 <li>3스테이지마다 보스가 나타나고, 마지막에는 호랑이 부족과 맞서게 됩니다.</li>
               </ul>
@@ -549,6 +634,64 @@ function App() {
             </div>
           </div>
         )}
+
+        {travel && (
+          <div className="overlay travel-overlay">
+            <div className="travel-scene">
+              <p className="eyebrow">부족 사이의 길</p>
+              <h2>{travel.from}의 땅에서 {travel.to}의 땅으로</h2>
+              <div className="travel-path" aria-label={`${travel.from}에서 ${travel.to}로 이동 중`}>
+                <span className="travel-node">{travel.from}</span>
+                <span className="travel-line" />
+                <img src="/assets/ung-run-2.png" alt="달리는 웅" />
+                <span className="travel-node destination">{travel.to}</span>
+              </div>
+              <p>웅과 동료들은 다음 토템의 연기를 향해 쉬지 않고 달렸다.</p>
+            </div>
+          </div>
+        )}
+
+        {tribeDecision && (
+          <div className="choice-overlay">
+            <div className="choice-panel decision-panel">
+              <p className="eyebrow">전황 변화 · {tribeDecision.tribe} 부족</p>
+              <h2>{tribeDecision.title || '남은 전사들이 무기를 내리려 한다'}</h2>
+              <p>{tribeDecision.body} 이미 {tribeDecision.defeated}명을 쓰러뜨렸다. 남은 {tribeDecision.remaining}명과 계속 싸울 수도, 호랑이의 거짓말을 설명하고 길을 열 수도 있다.</p>
+              <div className="decision-grid">
+                <button type="button" onClick={() => chooseTribeDecision('spare')}>
+                  <strong>무기를 거두고 설득한다</strong>
+                  <span>즉시 스테이지 완료 · 악명 감소 · 부족 신뢰 증가</span>
+                </button>
+                <button type="button" className="danger-choice" onClick={() => chooseTribeDecision('fight')}>
+                  <strong>끝까지 제압한다</strong>
+                  <span>전투 지속 · 경험치 확보 · 악명 증가</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tribeReward && (
+          <div className="choice-overlay">
+            <div className="choice-panel reward-panel">
+              <p className="eyebrow">{tribeReward.tribe} 부족의 약속</p>
+              <h2>다음 여정에 가져갈 힘을 고르세요</h2>
+              <div className="choice-grid reward-grid">
+                {[tribeReward.power, tribeReward.follower].map((reward) => (
+                  <button key={reward.id} type="button" className="skill-card" onClick={() => chooseTribeReward(reward.id)}>
+                    <span className="skill-header">
+                      <span className="skill-name">{reward.name}</span>
+                      <span className="skill-tag">{reward.id === 'follower' ? '부하' : '고유 능력'}</span>
+                    </span>
+                    <span className="skill-desc">{reward.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tribeNotice && <div className="tribe-notice" role="status">{tribeNotice}</div>}
 
         {chapter && !hud.win && (
           <div className="overlay story-overlay">
@@ -590,7 +733,7 @@ function App() {
                   <p className="eyebrow">{scene.eyebrow}</p>
                   <h2>{scene.title}</h2>
                   <p>{scene.body}</p>
-                  <p className="rumor-summary">최종 악명 {hud.reputation} · {hud.ending === 'conqueror' ? '공포가 진실보다 오래 남았다' : '절제가 거짓 소문을 이겼다'}</p>
+                  <p className="rumor-summary">최종 악명 {hud.reputation} · {ENDINGS.find(({ id }) => id === hud.ending)?.name || '기록되지 않은 결말'}</p>
                   <button
                     type="button"
                     onClick={() => {

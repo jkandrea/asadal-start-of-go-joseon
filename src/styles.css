@@ -438,6 +438,126 @@ button:disabled {
   font-size: 0.82rem;
 }
 
+.decision-panel,
+.reward-panel {
+  width: min(680px, 100%);
+}
+
+.decision-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.decision-grid button {
+  display: flex;
+  min-height: 128px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px;
+  text-align: left;
+}
+
+.decision-grid button span {
+  color: #d4c1a2;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.decision-grid .danger-choice {
+  border-color: rgba(219, 92, 66, 0.5);
+  background: linear-gradient(180deg, #4b241a, #24120f);
+}
+
+.reward-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.travel-overlay {
+  z-index: 55;
+  background:
+    linear-gradient(180deg, rgba(7, 8, 6, 0.92), rgba(26, 18, 10, 0.96)),
+    radial-gradient(circle at center, #5a3a1d, #090705 70%);
+}
+
+.travel-scene {
+  width: min(760px, 100%);
+  text-align: center;
+}
+
+.travel-scene h2 {
+  margin: 0 0 44px;
+  color: #ffe8b9;
+  font-family: Georgia, 'Noto Serif KR', serif;
+  font-size: clamp(1.4rem, 5vw, 2.3rem);
+}
+
+.travel-scene > p:last-child {
+  color: #cdbb9c;
+  font-size: 0.86rem;
+}
+
+.travel-path {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 170px;
+  margin: 0 0 24px;
+}
+
+.travel-line {
+  height: 2px;
+  background: repeating-linear-gradient(90deg, #b98443 0 12px, transparent 12px 22px);
+}
+
+.travel-node {
+  padding: 8px 10px;
+  border: 1px solid rgba(225, 171, 93, 0.42);
+  border-radius: 50%;
+  color: #e9c98f;
+  font-size: 0.76rem;
+}
+
+.travel-path img {
+  position: absolute;
+  bottom: 52%;
+  left: 7%;
+  width: 92px;
+  transform: translateY(50%);
+  filter: drop-shadow(0 12px 10px rgba(0, 0, 0, 0.55));
+  animation: cross-the-land 2.2s ease-in-out forwards, runner-bob 0.24s ease-in-out infinite alternate;
+}
+
+.tribe-notice {
+  position: absolute;
+  z-index: 65;
+  top: calc(max(8px, env(safe-area-inset-top)) + 74px);
+  left: 50%;
+  width: min(520px, calc(100% - 32px));
+  padding: 10px 14px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(150, 214, 156, 0.42);
+  border-radius: 10px;
+  background: rgba(16, 35, 22, 0.94);
+  color: #cce9c7;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+@keyframes cross-the-land {
+  from { left: 7%; }
+  to { left: calc(93% - 92px); }
+}
+
+@keyframes runner-bob {
+  from { margin-bottom: -2px; }
+  to { margin-bottom: 3px; }
+}
+
 .intro-art {
   position: relative;
   align-self: stretch;
@@ -869,6 +989,15 @@ button:disabled {
 
   .ending-memory {
     min-height: 0;
+  }
+
+  .decision-grid,
+  .reward-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .decision-grid button {
+    min-height: 96px;
   }
 }
 
