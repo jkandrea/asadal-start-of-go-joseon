@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import {
   canOfferLevelChoice,
+  canProposeTigerAlliance,
   enemyRunFrame,
   filterSkillsByPrerequisite,
   resolveEnding,
@@ -364,6 +365,7 @@ function bootAsadalGame(container, options = {}) {
         let combo = 0;
         let worldTime = 0;
         let clearedFinalBoss = false;
+        let pendingFinalDecision = false;
         let stageDecisionOffered = false;
         let sparedTribes = 0;
         let foundForgottenTribe = false;
@@ -874,11 +876,12 @@ function bootAsadalGame(container, options = {}) {
           });
         }
 
-        function triggerVictory() {
+        function triggerVictory(endingOverride = null) {
           if (clearedFinalBoss) return;
           clearedFinalBoss = true;
+          pendingFinalDecision = false;
           skillSelectionOpen = true;
-          const ending = resolveEnding({
+          const ending = endingOverride || resolveEnding({
             reputation: player.reputation,
             sparedTribes,
             followers: followers.length,
@@ -908,6 +911,25 @@ function bootAsadalGame(container, options = {}) {
           }));
         }
 
+        function offerFinalDecision() {
+          if (pendingFinalDecision || clearedFinalBoss) return;
+          pendingFinalDecision = true;
+          skillSelectionOpen = true;
+          const allianceEligible = canProposeTigerAlliance({
+            reputation: player.reputation,
+            sparedTribes,
+            followers: followers.length,
+          });
+          window.dispatchEvent(new CustomEvent('asadal:finalDecision', {
+            detail: {
+              allianceEligible,
+              reputation: player.reputation,
+              sparedTribes,
+              followers: followers.length,
+            },
+          }));
+        }
+
         function damageEnemy(enemy, damage, knockback = 0) {
           if (enemy.defeated) return;
           enemy.health -= damage;
@@ -926,7 +948,9 @@ function bootAsadalGame(container, options = {}) {
           if (enemy.health <= 0) {
             enemy.health = 0;
             enemy.defeated = true;
-            enemy.deathTimer = enemy.type === 'boss' ? 1.35 : 0.92;
+            enemy.deathTimer = enemy.type === 'boss' && stage >= 5
+              ? Number.POSITIVE_INFINITY
+              : enemy.type === 'boss' ? 1.35 : 0.92;
             enemy.attackPose = 0;
             enemy.attackHitPending = false;
             enemy.knockdownTimer = 0;
@@ -942,7 +966,7 @@ function bootAsadalGame(container, options = {}) {
                 detail: { type: 'boss', final: stage >= 6 },
               }));
               if (stage >= 5) {
-                triggerVictory();
+                offerFinalDecision();
               }
             }
           } else if (knockback >= 16 || damage >= enemy.maxHealth * 0.42) {
@@ -1648,6 +1672,7 @@ function bootAsadalGame(container, options = {}) {
           runHistory = { runsStarted: Math.max(1, Number(event.detail?.runsStarted) || 1) };
           sparedTribes = 0;
           foundForgottenTribe = false;
+          pendingFinalDecision = false;
           pendingTravelStage = null;
           followers.forEach((follower) => follower.sprite?.destroy());
           followers.splice(0, followers.length);
@@ -1727,6 +1752,7 @@ function bootAsadalGame(container, options = {}) {
                 detail: { text: '풀려난 전사가 지도에 없는 오래된 토템의 길을 알려 주었다.' },
               }));
             }
+
             skillSelectionOpen = false;
             queueStageClear();
           } else {
@@ -1743,6 +1769,17 @@ function bootAsadalGame(container, options = {}) {
           skillSelectionOpen = false;
           window.dispatchEvent(new CustomEvent('asadal:clearTribeReward'));
           tryAdvanceStage();
+        };
+
+        const onFinalDecision = (event) => {
+          if (!pendingFinalDecision || clearedFinalBoss) return;
+          const wantsAlliance = event.detail?.choice === 'alliance';
+          const allianceEligible = canProposeTigerAlliance({
+            reputation: player.reputation,
+            sparedTribes,
+            followers: followers.length,
+          });
+          triggerVictory(wantsAlliance && allianceEligible ? 'jinguk' : null);
         };
 
         const onContinueTravel = () => {
@@ -1762,6 +1799,7 @@ function bootAsadalGame(container, options = {}) {
           runStarted = false;
           gamePaused = true;
           skillSelectionOpen = false;
+          pendingFinalDecision = false;
           enemies.forEach((enemy) => destroyEnemyVisual(enemy));
           enemies.splice(0, enemies.length);
           followers.forEach((follower) => follower.sprite?.destroy());
@@ -1788,6 +1826,7 @@ function bootAsadalGame(container, options = {}) {
         window.addEventListener('asadal:continueStory', onContinueStory);
         window.addEventListener('asadal:tribeDecisionChoice', onTribeDecision);
         window.addEventListener('asadal:chooseTribeReward', onChooseTribeReward);
+        window.addEventListener('asadal:finalDecisionChoice', onFinalDecision);
         window.addEventListener('asadal:continueTravel', onContinueTravel);
         window.addEventListener('asadal:setPaused', onSetPaused);
         window.addEventListener('asadal:endRun', onEndRun);
@@ -1805,6 +1844,7 @@ function bootAsadalGame(container, options = {}) {
           window.removeEventListener('asadal:continueStory', onContinueStory);
           window.removeEventListener('asadal:tribeDecisionChoice', onTribeDecision);
           window.removeEventListener('asadal:chooseTribeReward', onChooseTribeReward);
+          window.removeEventListener('asadal:finalDecisionChoice', onFinalDecision);
           window.removeEventListener('asadal:continueTravel', onContinueTravel);
           window.removeEventListener('asadal:setPaused', onSetPaused);
           window.removeEventListener('asadal:endRun', onEndRun);

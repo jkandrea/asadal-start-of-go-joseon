@@ -16,6 +16,7 @@ export const ENDINGS = [
   { id: 'bear_return', code: '엔딩 E', name: '곰의 귀환', hint: '대부분의 부족을 살리고 고향으로 돌아갈 길을 남기세요.' },
   { id: 'hwanung_parting', code: '엔딩 F', name: '환웅을 만났지만', hint: '두 번째 출정 이후 낮은 악명으로 환웅을 만나세요.' },
   { id: 'forgotten_tribe', code: '엔딩 G', name: '잊힌 부족', hint: '원정 중 아주 드문 잊힌 부족의 흔적을 발견하세요.' },
+  { id: 'jinguk', code: '엔딩 H', name: '진국', hint: '높은 악명과 두 명 이상의 부하를 거느리고 호왕을 굴복시킨 뒤 혼인 동맹을 선택하세요.' },
 ];
 
 const emptyTraining = () => Object.fromEntries(TRAINING_ITEMS.map(({ id }) => [id, 0]));

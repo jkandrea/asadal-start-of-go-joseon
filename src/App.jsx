@@ -67,6 +67,7 @@ const prologueScenes = [
 
 const endingStories = {
   asadal: {
+    eyebrow: '결말 · 하늘과 땅의 약속',
     title: '서로 다른 토템 아래, 하나의 터전이 시작되었다',
     body: '환웅과 웅 사이에서 한 아이가 태어났다. 아이는 자라 단군왕검이 되었고, 사람을 널리 이롭게 하겠다는 뜻으로 아사달에 새로운 나라를 세웠다.',
     epilogue: '서로 다른 부족들이 함께 세운 그 나라는 훗날 고조선이라 불리게 되었다. 그리고 이들의 이야기는 오랜 세월을 지나, 곰과 호랑이, 그리고 하늘에서 내려온 신의 이야기가 되어 전해졌다고 한다.',
@@ -101,6 +102,12 @@ const endingStories = {
     body: '기록에서 지워진 부족은 호랑이의 거짓말보다 오래된 진실을 전했다. 웅은 알려진 신화 바깥의 역사를 마주했다.',
     epilogue: '역사는 강한 자뿐 아니라 끝내 기억된 자의 것이기도 했다.',
   },
+  jinguk: {
+    eyebrow: '결말 · 굴복한 호왕',
+    title: '호랑이와 곰은 같은 왕좌를 택했다',
+    body: '웅은 굴복한 호왕을 베지 않았다. 두 사람은 혼인으로 전쟁을 끝내고 열두 부족을 하나의 강대한 군세로 묶었다. 그 사이에서 태어난 아이는 영토 지배에 대한 야욕이 남다르고 매우 영특했다.',
+    epilogue: '자라난 아이는 강한 군대를 이끌고 남쪽으로 내려가 새로운 나라를 세웠다. 그 나라는 훗날 "진국"이라 불렸다고 한다.',
+  },
 };
 
 const endingIllustrations = Object.fromEntries(
@@ -112,7 +119,7 @@ const getEndingScenes = (ending) => {
   const story = endingStories[ending] || endingStories.tiger_heir;
   return [
     {
-      eyebrow: '결말 · 무너진 호왕',
+      eyebrow: story.eyebrow || '결말 · 무너진 호왕',
       title: story.title,
       body: story.body,
     },
@@ -151,6 +158,7 @@ function App() {
   const [prologueStep, setPrologueStep] = useState(-1);
   const [chapter, setChapter] = useState(null);
   const [tribeDecision, setTribeDecision] = useState(null);
+  const [finalDecision, setFinalDecision] = useState(null);
   const [tribeReward, setTribeReward] = useState(null);
   const [travel, setTravel] = useState(null);
   const [tribeNotice, setTribeNotice] = useState('');
@@ -172,6 +180,7 @@ function App() {
         setEndingStep(0);
         setChoices([]);
         setTribeDecision(null);
+        setFinalDecision(null);
         setTribeReward(null);
         setTravel(null);
         setMeta((current) => unlockEnding(current, detail.ending));
@@ -206,6 +215,7 @@ function App() {
     };
 
     const handleTribeDecision = (event) => setTribeDecision(event.detail || null);
+    const handleFinalDecision = (event) => setFinalDecision(event.detail || null);
     const handleTribeReward = (event) => setTribeReward(event.detail || null);
     const clearTribeReward = () => setTribeReward(null);
     const handleTravel = (event) => setTravel(event.detail || null);
@@ -220,6 +230,7 @@ function App() {
     window.addEventListener('asadal:story', handleChapter);
     window.addEventListener('asadal:metaReward', handleMetaReward);
     window.addEventListener('asadal:tribeDecision', handleTribeDecision);
+    window.addEventListener('asadal:finalDecision', handleFinalDecision);
     window.addEventListener('asadal:tribeReward', handleTribeReward);
     window.addEventListener('asadal:clearTribeReward', clearTribeReward);
     window.addEventListener('asadal:travel', handleTravel);
@@ -232,6 +243,7 @@ function App() {
       window.removeEventListener('asadal:story', handleChapter);
       window.removeEventListener('asadal:metaReward', handleMetaReward);
       window.removeEventListener('asadal:tribeDecision', handleTribeDecision);
+      window.removeEventListener('asadal:finalDecision', handleFinalDecision);
       window.removeEventListener('asadal:tribeReward', handleTribeReward);
       window.removeEventListener('asadal:clearTribeReward', clearTribeReward);
       window.removeEventListener('asadal:travel', handleTravel);
@@ -262,7 +274,7 @@ function App() {
     gameOver: hud.gameOver,
     win: hud.win,
     hasChoices: choices.length > 0,
-    hasDecision: Boolean(tribeDecision),
+    hasDecision: Boolean(tribeDecision || finalDecision),
     hasReward: Boolean(tribeReward),
     travelling: Boolean(travel),
   });
@@ -348,6 +360,7 @@ function App() {
     setChoices([]);
     setChapter(null);
     setTribeDecision(null);
+    setFinalDecision(null);
     setTribeReward(null);
     setTravel(null);
     setTribeNotice('');
@@ -370,6 +383,11 @@ function App() {
   const chooseTribeDecision = (choice) => {
     setTribeDecision(null);
     window.dispatchEvent(new CustomEvent('asadal:tribeDecisionChoice', { detail: { choice } }));
+  };
+
+  const chooseFinalDecision = (choice) => {
+    setFinalDecision(null);
+    window.dispatchEvent(new CustomEvent('asadal:finalDecisionChoice', { detail: { choice } }));
   };
 
   const chooseTribeReward = (choice) => {
@@ -712,6 +730,34 @@ function App() {
                 <button type="button" className="danger-choice" onClick={() => chooseTribeDecision('fight')}>
                   <strong>끝까지 제압한다</strong>
                   <span>전투 지속 · 경험치 확보 · 악명 증가</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {finalDecision && (
+          <div className="choice-overlay">
+            <div className="choice-panel decision-panel final-decision-panel">
+              <p className="eyebrow">최후의 선택 · 굴복한 호왕</p>
+              <h2>호왕의 목숨과 전쟁의 결말을 정하세요</h2>
+              <p>쓰러진 호왕은 열두 부족을 함께 다스릴 혼인 동맹을 제안한다. 웅은 복수를 끝낼 수도, 두 세력을 하나의 강대한 나라로 묶을 수도 있다.</p>
+              <div className="decision-grid">
+                <button type="button" className="danger-choice" onClick={() => chooseFinalDecision('finish')}>
+                  <strong>호왕을 베고 전쟁을 끝낸다</strong>
+                  <span>지금까지의 자비·악명·동료에 따라 기존 엔딩으로 진행</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => chooseFinalDecision('alliance')}
+                  disabled={!finalDecision.allianceEligible}
+                >
+                  <strong>혼인 동맹을 받아들인다</strong>
+                  <span>
+                    {finalDecision.allianceEligible
+                      ? '호랑이와 곰의 군세를 합쳐 진국 엔딩으로 진행'
+                      : '악명 45~69 · 부하 2명 이상 · 살려준 부족 2곳 이하 필요'}
+                  </span>
                 </button>
               </div>
             </div>

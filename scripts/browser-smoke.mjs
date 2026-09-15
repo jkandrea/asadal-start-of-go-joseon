@@ -11,8 +11,13 @@ await new Promise((resolve, reject) => {
 
 let messageId = 0;
 const pending = new Map();
+const runtimeErrors = [];
 socket.addEventListener('message', (event) => {
   const message = JSON.parse(event.data);
+  if (message.method === 'Runtime.exceptionThrown') {
+    runtimeErrors.push(message.params?.exceptionDetails?.exception?.description || message.params?.exceptionDetails?.text || 'Runtime exception');
+    return;
+  }
   if (!message.id || !pending.has(message.id)) return;
   const { resolve, reject } = pending.get(message.id);
   pending.delete(message.id);
@@ -32,6 +37,8 @@ const evaluate = async (expression) => {
   return result.result.value;
 };
 
+await command('Runtime.enable');
+
 const waitFor = async (expression, timeout = 30000) => {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeout) {
@@ -44,7 +51,7 @@ const waitFor = async (expression, timeout = 30000) => {
     body: document.body?.innerText?.slice(0, 500) || '',
     html: document.body?.innerHTML?.slice(0, 500) || '',
   })`);
-  throw new Error(`Timed out waiting for: ${expression}\n${JSON.stringify(snapshot, null, 2)}`);
+  throw new Error(`Timed out waiting for: ${expression}\n${JSON.stringify({ ...snapshot, runtimeErrors }, null, 2)}`);
 };
 
 const clickButton = async (label) => {
@@ -61,9 +68,9 @@ const savedLevel = await evaluate(`JSON.parse(localStorage.getItem('asadal.meta.
 if (savedLevel !== 1) throw new Error('Training investment was not persisted');
 await clickButton('돌아가기');
 await clickButton('기억의 전당');
-await waitFor("document.querySelectorAll('.ending-memory').length === 7");
+await waitFor("document.querySelectorAll('.ending-memory').length === 8");
 const uniqueEndingArt = await evaluate("new Set([...document.querySelectorAll('.ending-memory')].map((card) => card.style.getPropertyValue('--ending-image'))).size");
-if (uniqueEndingArt !== 7) throw new Error(`Expected 7 distinct ending illustrations, found ${uniqueEndingArt}`);
+if (uniqueEndingArt !== 8) throw new Error(`Expected 8 distinct ending illustrations, found ${uniqueEndingArt}`);
 await clickButton('마을로 돌아가기');
 await evaluate(`(() => {
   const meta = JSON.parse(localStorage.getItem('asadal.meta.v1'));
@@ -115,6 +122,18 @@ await waitFor("document.querySelector('.reward-panel') === null");
 await evaluate("window.dispatchEvent(new CustomEvent('asadal:travel', { detail: { from: '양', to: '돼지', stage: 2 } })); true");
 await waitFor("document.querySelector('.travel-scene') !== null");
 await waitFor("document.querySelector('.travel-scene') === null", 5000);
+
+await evaluate("window.dispatchEvent(new CustomEvent('asadal:finalDecision', { detail: { allianceEligible: false } })); true");
+await waitFor("document.body.innerText.includes('호왕의 목숨과 전쟁의 결말')");
+const allianceDisabled = await evaluate("[...document.querySelectorAll('button')].find((button) => button.textContent.includes('혼인 동맹'))?.disabled");
+if (!allianceDisabled) throw new Error('The alliance choice should be disabled without its route conditions');
+await clickButton('호왕을 베고 전쟁을 끝낸다');
+await evaluate("window.dispatchEvent(new CustomEvent('asadal:finalDecision', { detail: { allianceEligible: true } })); true");
+await waitFor("[...document.querySelectorAll('button')].some((button) => button.textContent.includes('혼인 동맹') && !button.disabled)");
+await clickButton('혼인 동맹을 받아들인다');
+await waitFor("document.querySelector('.final-decision-panel') === null");
+
+if (runtimeErrors.length > 0) throw new Error(`Browser runtime errors: ${JSON.stringify(runtimeErrors)}`);
 
 console.log(JSON.stringify({ ok: true, ...result }));
 socket.close();

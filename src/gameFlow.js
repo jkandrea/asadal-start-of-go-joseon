@@ -43,7 +43,12 @@ export const filterSkillsByPrerequisite = (skills, levels) => (
   skills.filter((skill) => !skill.requires || (levels[skill.requires] ?? 0) > 0)
 );
 
-export function resolveEnding({ reputation, sparedTribes, followers, runsStarted, foundForgottenTribe }) {
+export const canProposeTigerAlliance = ({ reputation, sparedTribes, followers }) => (
+  reputation >= 45 && reputation < 70 && sparedTribes <= 2 && followers >= 2
+);
+
+export function resolveEnding({ reputation, sparedTribes, followers, runsStarted, foundForgottenTribe, tigerAlliance }) {
+  if (tigerAlliance && canProposeTigerAlliance({ reputation, sparedTribes, followers })) return 'jinguk';
   if (sparedTribes >= 4 && followers >= 2 && reputation <= 12) return 'asadal';
   if (foundForgottenTribe) return 'forgotten_tribe';
   if (reputation >= 70) return 'conqueror';
