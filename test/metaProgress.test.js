@@ -4,9 +4,11 @@ import {
   createInitialMeta,
   investTraining,
   normalizeMeta,
+  recordRunStart,
   refundTraining,
   rewardBoss,
   unlockEnding,
+  unlockMemory,
 } from '../src/metaProgress.js';
 import {
   GAME_PHASE,
@@ -15,8 +17,10 @@ import {
   enemyRunFrame,
   filterSkillsByPrerequisite,
   isCombatPaused,
+  reputationForDefeat,
   resolveGamePhase,
   resolveEnding,
+  resolveTribeReaction,
   stageGoalFor,
 } from '../src/gameFlow.js';
 
@@ -39,6 +43,29 @@ test('boss rewards persist and a new ending rewards only once', () => {
   meta = unlockEnding(meta, 'asadal');
   assert.equal(meta.trainingPoints, 11);
   assert.deepEqual(meta.unlockedEndings, ['asadal']);
+});
+
+test('journey memories unlock once and award persistent training points', () => {
+  let meta = recordRunStart(createInitialMeta());
+  assert.equal(meta.runsStarted, 1);
+  assert.equal(meta.trainingPoints, 7);
+  assert.deepEqual(meta.unlockedMemories, ['tiger_lie']);
+
+  meta = recordRunStart(recordRunStart(meta));
+  assert.equal(meta.runsStarted, 3);
+  assert.equal(meta.trainingPoints, 9);
+  assert.deepEqual(meta.unlockedMemories, ['tiger_lie', 'mountain_stranger']);
+
+  meta = unlockMemory(meta, 'snake_elder');
+  assert.equal(meta.trainingPoints, 11);
+  meta = unlockMemory(meta, 'snake_elder');
+  assert.equal(meta.trainingPoints, 11);
+});
+
+test('the tiger heir ending records the surviving child as a memory', () => {
+  const meta = unlockEnding(createInitialMeta(), 'tiger_heir');
+  assert.equal(meta.trainingPoints, 9);
+  assert.deepEqual(meta.unlockedMemories, ['tiger_child']);
 });
 
 test('corrupted save values are normalized', () => {
@@ -84,6 +111,19 @@ test('the tiger marriage alliance requires ambition and an established force', (
   assert.equal(canProposeTigerAlliance({ reputation: 52, sparedTribes: 3, followers: 2 }), false);
   assert.equal(canProposeTigerAlliance({ reputation: 52, sparedTribes: 1, followers: 1 }), false);
   assert.equal(canProposeTigerAlliance({ reputation: 72, sparedTribes: 0, followers: 3 }), false);
+});
+
+test('tribe reactions use the requested persuasion and flight probabilities', () => {
+  assert.equal(resolveTribeReaction('spare', 0.49), 'accept');
+  assert.equal(resolveTribeReaction('spare', 0.5), 'resist');
+  assert.equal(resolveTribeReaction('fight', 0.09), 'flee');
+  assert.equal(resolveTribeReaction('fight', 0.1), 'resist');
+});
+
+test('resisting and fleeing enemies apply their reputation multipliers', () => {
+  assert.equal(reputationForDefeat('raider', 0.5), 0.5);
+  assert.equal(reputationForDefeat('raider', 5), 5);
+  assert.equal(reputationForDefeat('boss'), 6);
 });
 
 test('slow sheep and boar archetypes alternate their running frames', () => {

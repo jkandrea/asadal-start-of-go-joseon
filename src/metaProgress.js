@@ -19,6 +19,13 @@ export const ENDINGS = [
   { id: 'jinguk', code: '엔딩 H', name: '진국', hint: '높은 악명과 두 명 이상의 부하를 거느리고 호왕을 굴복시킨 뒤 혼인 동맹을 선택하세요.' },
 ];
 
+export const MEMORIES = [
+  { id: 'tiger_lie', name: '퍼져 나간 거짓말', description: '호랑이 부족이 열한 부족에 웅이 정복 전쟁을 시작했다고 속였다.' },
+  { id: 'snake_elder', name: '뱀 장로의 신뢰', description: '무기를 거둔 웅의 말을 뱀 부족의 장로가 믿고 전사들에게 길을 열라 명했다.' },
+  { id: 'mountain_stranger', name: '산속의 낯선 남자', description: '거듭된 원정 끝에 하늘의 기운을 두른 환웅의 흔적이 산길에 나타났다.' },
+  { id: 'tiger_child', name: '살아남은 호랑이 아이', description: '끝난 전쟁의 폐허에서 호왕의 마지막 아이가 살아남아 다음 이야기를 기다린다.' },
+];
+
 const emptyTraining = () => Object.fromEntries(TRAINING_ITEMS.map(({ id }) => [id, 0]));
 
 export const createInitialMeta = () => ({
@@ -26,6 +33,7 @@ export const createInitialMeta = () => ({
   trainingPoints: 5,
   trainingLevels: emptyTraining(),
   unlockedEndings: [],
+  unlockedMemories: [],
   runsStarted: 0,
   victories: 0,
   bossesDefeated: 0,
@@ -44,6 +52,7 @@ export function normalizeMeta(value) {
       Math.min(maxLevel, Math.max(0, Math.floor(Number(value.trainingLevels?.[id]) || 0))),
     ])),
     unlockedEndings: ENDINGS.map(({ id }) => id).filter((id) => value.unlockedEndings?.includes(id)),
+    unlockedMemories: MEMORIES.map(({ id }) => id).filter((id) => value.unlockedMemories?.includes(id)),
     runsStarted: Math.max(0, Math.floor(Number(value.runsStarted) || 0)),
     victories: Math.max(0, Math.floor(Number(value.victories) || 0)),
     bossesDefeated: Math.max(0, Math.floor(Number(value.bossesDefeated) || 0)),
@@ -73,7 +82,27 @@ export function refundTraining(meta) {
 
 export function recordRunStart(meta) {
   const current = normalizeMeta(meta);
-  return { ...current, runsStarted: current.runsStarted + 1 };
+  const runsStarted = current.runsStarted + 1;
+  const unlockedMemories = new Set(current.unlockedMemories);
+  const previousMemoryCount = unlockedMemories.size;
+  unlockedMemories.add('tiger_lie');
+  if (runsStarted >= 3) unlockedMemories.add('mountain_stranger');
+  return {
+    ...current,
+    runsStarted,
+    trainingPoints: current.trainingPoints + (unlockedMemories.size - previousMemoryCount) * 2,
+    unlockedMemories: [...unlockedMemories],
+  };
+}
+
+export function unlockMemory(meta, memoryId) {
+  const current = normalizeMeta(meta);
+  if (!MEMORIES.some(({ id }) => id === memoryId) || current.unlockedMemories.includes(memoryId)) return current;
+  return {
+    ...current,
+    trainingPoints: current.trainingPoints + 2,
+    unlockedMemories: [...current.unlockedMemories, memoryId],
+  };
 }
 
 export function rewardBoss(meta, isFinalBoss = false) {
@@ -88,10 +117,15 @@ export function rewardBoss(meta, isFinalBoss = false) {
 export function unlockEnding(meta, endingId) {
   const current = normalizeMeta(meta);
   if (!ENDINGS.some(({ id }) => id === endingId) || current.unlockedEndings.includes(endingId)) return current;
+  const unlockedMemories = endingId === 'tiger_heir'
+    ? [...new Set([...current.unlockedMemories, 'tiger_child'])]
+    : current.unlockedMemories;
+  const memoryReward = unlockedMemories.length > current.unlockedMemories.length ? 2 : 0;
   return {
     ...current,
-    trainingPoints: current.trainingPoints + 2,
+    trainingPoints: current.trainingPoints + 2 + memoryReward,
     victories: current.victories + 1,
     unlockedEndings: [...current.unlockedEndings, endingId],
+    unlockedMemories,
   };
 }

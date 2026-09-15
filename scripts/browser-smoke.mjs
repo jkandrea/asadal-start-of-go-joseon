@@ -61,6 +61,7 @@ const clickButton = async (label) => {
 
 await evaluate("localStorage.removeItem('asadal.meta.v1'); location.reload(); true");
 await waitFor("document.body.innerText.includes('새 출정')");
+runtimeErrors.length = 0;
 await clickButton('곰의 수련');
 await waitFor("document.body.innerText.includes('전체 회수')");
 await clickButton('1점 투자');
@@ -69,6 +70,7 @@ if (savedLevel !== 1) throw new Error('Training investment was not persisted');
 await clickButton('돌아가기');
 await clickButton('기억의 전당');
 await waitFor("document.querySelectorAll('.ending-memory').length === 8");
+await waitFor("document.querySelectorAll('.memory-record').length === 4");
 const uniqueEndingArt = await evaluate("new Set([...document.querySelectorAll('.ending-memory')].map((card) => card.style.getPropertyValue('--ending-image'))).size");
 if (uniqueEndingArt !== 8) throw new Error(`Expected 8 distinct ending illustrations, found ${uniqueEndingArt}`);
 await clickButton('마을로 돌아가기');
@@ -90,6 +92,8 @@ await clickButton('기억의 전당으로');
 await clickButton('마을로 돌아가기');
 await clickButton('새 출정');
 await waitFor("document.body.innerText.includes('프롤로그')");
+const firstRunMemory = await evaluate("JSON.parse(localStorage.getItem('asadal.meta.v1')).unlockedMemories.includes('tiger_lie')");
+if (!firstRunMemory) throw new Error('The first journey memory was not persisted');
 await new Promise((resolve) => setTimeout(resolve, 2500));
 const prematureDefeat = await evaluate("document.body.innerText.includes('웅은 쓰러졌다')");
 if (prematureDefeat) throw new Error('Combat advanced behind the prologue');
@@ -112,7 +116,10 @@ if (Number.parseFloat(result.health) < 100) throw new Error(`Player max health r
 await evaluate("window.dispatchEvent(new CustomEvent('asadal:tribeDecision', { detail: { tribe: '양', defeated: 4, remaining: 3, reputation: 4 } })); true");
 await waitFor("document.body.innerText.includes('남은 전사들이 무기를 내리려 한다')");
 await clickButton('끝까지 제압한다');
-await waitFor("document.querySelector('.decision-panel') === null");
+await evaluate("window.dispatchEvent(new CustomEvent('asadal:tribeReaction', { detail: { tribe: '양', choice: 'fight', outcome: 'resist', title: '전사들도 끝까지 맞서기로 했다', body: '대열을 고쳐 잡았다.', consequence: '전투 계속 · 처치 악명 정상 적용' } })); true");
+await waitFor("document.body.innerText.includes('전사들도 끝까지 맞서기로 했다')");
+await clickButton('그들의 선택을 받아들인다');
+await waitFor("document.querySelector('.reaction-panel') === null");
 
 await evaluate("window.dispatchEvent(new CustomEvent('asadal:tribeReward', { detail: { tribe: '돼지', power: { id: 'power', name: '풍요의 몫', description: '고유 능력' }, follower: { id: 'follower', name: '복주머니 짐꾼', description: '부하' } } })); true");
 await waitFor("document.body.innerText.includes('다음 여정에 가져갈 힘')");

@@ -4,7 +4,9 @@ import {
   canProposeTigerAlliance,
   enemyRunFrame,
   filterSkillsByPrerequisite,
+  reputationForDefeat,
   resolveEnding,
+  resolveTribeReaction,
   stageGoalFor,
 } from '../gameFlow';
 
@@ -367,6 +369,9 @@ function bootAsadalGame(container, options = {}) {
         let clearedFinalBoss = false;
         let pendingFinalDecision = false;
         let stageDecisionOffered = false;
+        let stageReputationScale = 1;
+        let fleeingStage = false;
+        let pendingTribeReaction = null;
         let sparedTribes = 0;
         let foundForgottenTribe = false;
         let pendingTravelStage = null;
@@ -518,11 +523,17 @@ function bootAsadalGame(container, options = {}) {
         let stageAdvanceReady = false;
 
         function updateStageGoalText() {
+          if (fleeingStage) {
+            const remaining = enemies.filter((enemy) => !enemy.defeated && !enemy.escaped).length;
+            stageObjectiveText.setText(`도주 중인 전사 ${remaining}명 • 공격 시 악명 ×5`);
+            return;
+          }
           const goalLabel = bossSpawned ? '보스 처치' : '적';
           stageObjectiveText.setText(`목표: ${goalLabel} ${stageGoal}마리 처치 • ${Math.min(player.kills, stageGoal)}/${stageGoal}`);
         }
 
         function spawnFloatingText(x, y, value, color = '#f9d38d') {
+          if (!scene.sys?.isActive() || !scene.game?.context) return;
           const text = scene.add.text(x, y, value, {
             fontSize: '16px',
             fill: color,
@@ -718,6 +729,9 @@ function bootAsadalGame(container, options = {}) {
           stageGoal = stageGoalFor(stage, bossSpawned);
           player.kills = 0;
           stageDecisionOffered = false;
+          stageReputationScale = 1;
+          fleeingStage = false;
+          pendingTribeReaction = null;
           nextStageQueued = false;
           stageAdvanceReady = false;
           applyTribeTrait(player, currentTribeName);
@@ -957,7 +971,10 @@ function bootAsadalGame(container, options = {}) {
             enemy.attackRing?.setVisible(false);
             player.kills += 1;
             player.xp += enemy.type === 'boss' ? 25 : 8;
-            player.reputation += enemy.type === 'boss' ? 6 : 1;
+            player.reputation += reputationForDefeat(
+              enemy.type,
+              enemy.reputationScale ?? (enemy.type === 'boss' ? 1 : stageReputationScale),
+            );
             spawnFloatingText(enemy.x, enemy.y - 20, enemy.type === 'boss' ? '+25' : '+8', '#8ef1a7');
             updateStageGoalText();
             if (enemy.type === 'boss') {
@@ -977,7 +994,7 @@ function bootAsadalGame(container, options = {}) {
         }
 
         function spawnWave() {
-          if (bossSpawned || skillSelectionOpen) {
+          if (bossSpawned || skillSelectionOpen || fleeingStage) {
             return;
           }
           const desiredCount = Math.min(8, Math.max(2, stage + 1));
@@ -987,7 +1004,7 @@ function bootAsadalGame(container, options = {}) {
         }
 
         function levelUp() {
-          if (!canOfferLevelChoice({ clearedFinalBoss, health: player.health, finalStage: stage >= 6 })) return;
+          if (fleeingStage || !canOfferLevelChoice({ clearedFinalBoss, health: player.health, finalStage: stage >= 6 })) return;
           while (player.xp >= player.xpToNext) {
             player.xp -= player.xpToNext;
             player.level += 1;
@@ -1333,6 +1350,41 @@ function bootAsadalGame(container, options = {}) {
           triggerPlayerDefeat();
         }
 
+        function updateFleeingEnemy(enemy, delta, expiredEnemies) {
+          const escapeAngle = enemy.escapeAngle ?? 0;
+          const fleeSpeed = enemy.speed * 2.15 * (delta / 1000);
+          enemy.x += Math.cos(escapeAngle) * fleeSpeed;
+          enemy.y += Math.sin(escapeAngle) * fleeSpeed;
+          enemy.runCycleTime += delta;
+          const escaped = enemy.x < -48
+            || enemy.x > world.width + 48
+            || enemy.y < -48
+            || enemy.y > world.height + 48;
+
+          if (escaped) {
+            enemy.escaped = true;
+            expiredEnemies.push(enemy);
+            updateStageGoalText();
+            return;
+          }
+
+          if (enemy.sprite) {
+            const textureKey = `${enemy.archetype.texture}-run-${enemyRunFrame(enemy.runCycleTime, enemy.archetype.speed)}`;
+            if (enemy.sprite.texture.key !== textureKey) enemy.sprite.setTexture(textureKey);
+            const referenceFrame = scene.textures.getFrame(textureKey);
+            const motionScale = enemy.visualHeight / referenceFrame.realHeight;
+            enemy.sprite
+              .setPosition(enemy.x, enemy.y)
+              .setDisplaySize(referenceFrame.realWidth * motionScale, enemy.visualHeight)
+              .setDepth(10 + enemy.y / 1000)
+              .setFlipX(Math.cos(escapeAngle) > 0)
+              .setAngle(Math.sin(enemy.runCycleTime / 85) * enemy.archetype.tilt * 0.15)
+              .clearTint();
+          }
+          enemy.shadow?.setPosition(enemy.x, enemy.y + enemy.visualHeight * 0.16);
+          enemy.attackRing?.setVisible(false);
+        }
+
         function updateEnemyMovement(delta) {
           const expiredEnemies = [];
           enemies.forEach((enemy) => {
@@ -1340,6 +1392,11 @@ function bootAsadalGame(container, options = {}) {
             const attackDuration = getEnemyAttackDuration(enemy);
             const previousAttackPose = enemy.attackPose ?? 0;
             enemy.hitPose = Math.max(0, (enemy.hitPose ?? 0) - delta / 1000);
+
+            if (enemy.fleeing && !enemy.defeated) {
+              updateFleeingEnemy(enemy, delta, expiredEnemies);
+              return;
+            }
 
             if (!enemy.defeated && enemy.poisonTimer > 0) {
               enemy.poisonTimer = Math.max(0, enemy.poisonTimer - delta / 1000);
@@ -1572,10 +1629,10 @@ function bootAsadalGame(container, options = {}) {
 
           for (let left = 0; left < enemies.length; left += 1) {
             const first = enemies[left];
-            if (first.defeated || first.knockdownTimer > 0) continue;
+            if (first.defeated || first.fleeing || first.knockdownTimer > 0) continue;
             for (let right = left + 1; right < enemies.length; right += 1) {
               const second = enemies[right];
-              if (second.defeated || second.knockdownTimer > 0) continue;
+              if (second.defeated || second.fleeing || second.knockdownTimer > 0) continue;
               const dx = second.x - first.x;
               const dy = second.y - first.y;
               const distance = Math.hypot(dx, dy) || 0.001;
@@ -1596,6 +1653,10 @@ function bootAsadalGame(container, options = {}) {
             const index = enemies.indexOf(enemy);
             if (index >= 0) enemies.splice(index, 1);
           });
+
+          if (fleeingStage && !nextStageQueued && enemies.every((enemy) => enemy.defeated || enemy.escaped)) {
+            queueStageClear();
+          }
 
           updateEnemyProjectiles(delta);
           if (player.poisonTimer > 0 && player.health > 0) {
@@ -1742,10 +1803,49 @@ function bootAsadalGame(container, options = {}) {
 
         const onTribeDecision = (event) => {
           if (!stageDecisionOffered || nextStageQueued) return;
-          if (event.detail?.choice === 'spare') {
+          const choice = event.detail?.choice === 'spare' ? 'spare' : 'fight';
+          const outcome = resolveTribeReaction(choice);
+          pendingTribeReaction = { choice, outcome };
+          const reaction = choice === 'spare'
+            ? outcome === 'accept'
+              ? {
+                title: '전사들이 무기를 내려놓았다',
+                body: '호랑이 부족이 퍼뜨린 거짓말을 깨달은 전사들이 길을 열고 부상자를 거두기 시작했다.',
+                consequence: '남은 전투 생략 · 악명 8 감소',
+              }
+              : {
+                title: '설득은 통하지 않았다',
+                body: '전사들은 웅의 말을 함정으로 여기고 다시 무기를 들었다. 그래도 먼저 평화를 청한 사실은 전장에 남는다.',
+                consequence: '전투 계속 · 이후 처치 악명 ×0.5',
+              }
+            : outcome === 'flee'
+              ? {
+                title: '전사들이 공포에 무너졌다',
+                body: '끝까지 싸우겠다는 웅의 선언에 남은 전사들이 등을 돌려 달아나기 시작했다.',
+                consequence: '전원 도주 · 도주 중 처치 악명 ×5',
+              }
+              : {
+                title: '전사들도 끝까지 맞서기로 했다',
+                body: '두려움을 삼킨 전사들이 대열을 고쳐 잡았다. 어느 쪽도 물러서지 않는 전투가 이어진다.',
+                consequence: '전투 계속 · 처치 악명 정상 적용',
+              };
+          window.dispatchEvent(new CustomEvent('asadal:tribeReaction', {
+            detail: { tribe: currentBattleTribe, choice, outcome, ...reaction },
+          }));
+        };
+
+        const onContinueTribeReaction = () => {
+          if (!pendingTribeReaction || nextStageQueued) return;
+          const { choice, outcome } = pendingTribeReaction;
+          pendingTribeReaction = null;
+
+          if (choice === 'spare' && outcome === 'accept') {
             sparedTribes += 1;
             player.reputation = Math.max(0, player.reputation - 8);
             player.kills = stageGoal;
+            if (currentBattleTribe === '뱀') {
+              window.dispatchEvent(new CustomEvent('asadal:memory', { detail: { id: 'snake_elder' } }));
+            }
             if (stage === 4 && sparedTribes >= 2 && Math.random() < 0.35) {
               foundForgottenTribe = true;
               window.dispatchEvent(new CustomEvent('asadal:tribeEvent', {
@@ -1755,10 +1855,33 @@ function bootAsadalGame(container, options = {}) {
 
             skillSelectionOpen = false;
             queueStageClear();
-          } else {
-            player.reputation += 6;
-            skillSelectionOpen = false;
+            return;
           }
+
+          if (choice === 'spare') {
+            stageReputationScale = 0.5;
+          } else if (outcome === 'flee') {
+            stageReputationScale = 5;
+            fleeingStage = true;
+            enemies.filter((enemy) => !enemy.defeated).forEach((enemy) => {
+              enemy.fleeing = true;
+              enemy.reputationScale = 5;
+              enemy.attackPose = 0;
+              enemy.attackHitPending = false;
+              enemy.attackWarning = 0;
+              enemy.escapeAngle = Phaser.Math.Angle.Between(playerBody.x, playerBody.y, enemy.x, enemy.y)
+                + Phaser.Math.FloatBetween(-0.22, 0.22);
+              enemy.attackRing?.setVisible(false);
+            });
+            bossText.setText('남은 전사들이 달아난다');
+            bossText.setVisible(true);
+            updateStageGoalText();
+          } else {
+            stageReputationScale = 1;
+          }
+
+          skillSelectionOpen = false;
+          if (fleeingStage && enemies.every((enemy) => enemy.defeated || enemy.escaped)) queueStageClear();
         };
 
         const onChooseTribeReward = (event) => {
@@ -1800,6 +1923,8 @@ function bootAsadalGame(container, options = {}) {
           gamePaused = true;
           skillSelectionOpen = false;
           pendingFinalDecision = false;
+          pendingTribeReaction = null;
+          fleeingStage = false;
           enemies.forEach((enemy) => destroyEnemyVisual(enemy));
           enemies.splice(0, enemies.length);
           followers.forEach((follower) => follower.sprite?.destroy());
@@ -1825,6 +1950,7 @@ function bootAsadalGame(container, options = {}) {
         window.addEventListener('asadal:chooseSkill', onChooseSkill);
         window.addEventListener('asadal:continueStory', onContinueStory);
         window.addEventListener('asadal:tribeDecisionChoice', onTribeDecision);
+        window.addEventListener('asadal:continueTribeReaction', onContinueTribeReaction);
         window.addEventListener('asadal:chooseTribeReward', onChooseTribeReward);
         window.addEventListener('asadal:finalDecisionChoice', onFinalDecision);
         window.addEventListener('asadal:continueTravel', onContinueTravel);
@@ -1843,6 +1969,7 @@ function bootAsadalGame(container, options = {}) {
           window.removeEventListener('asadal:chooseSkill', onChooseSkill);
           window.removeEventListener('asadal:continueStory', onContinueStory);
           window.removeEventListener('asadal:tribeDecisionChoice', onTribeDecision);
+          window.removeEventListener('asadal:continueTribeReaction', onContinueTribeReaction);
           window.removeEventListener('asadal:chooseTribeReward', onChooseTribeReward);
           window.removeEventListener('asadal:finalDecisionChoice', onFinalDecision);
           window.removeEventListener('asadal:continueTravel', onContinueTravel);
@@ -2063,7 +2190,7 @@ function bootAsadalGame(container, options = {}) {
               return;
             }
 
-            if (player.kills >= stageGoal && !nextStageQueued) {
+            if (player.kills >= stageGoal && !nextStageQueued && !fleeingStage) {
               queueStageClear();
               return;
             }

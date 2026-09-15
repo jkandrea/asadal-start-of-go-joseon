@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { GAME_PHASE, isCombatPaused, resolveGamePhase } from './gameFlow';
 import {
   ENDINGS,
+  MEMORIES,
   META_STORAGE_KEY,
   TRAINING_ITEMS,
   createInitialMeta,
@@ -12,6 +13,7 @@ import {
   rewardBoss,
   trainingCost,
   unlockEnding,
+  unlockMemory,
 } from './metaProgress';
 
 const tribePool = ['쥐', '소', '토끼', '용', '뱀', '말', '양', '원숭이', '닭', '개', '돼지'];
@@ -158,6 +160,7 @@ function App() {
   const [prologueStep, setPrologueStep] = useState(-1);
   const [chapter, setChapter] = useState(null);
   const [tribeDecision, setTribeDecision] = useState(null);
+  const [tribeReaction, setTribeReaction] = useState(null);
   const [finalDecision, setFinalDecision] = useState(null);
   const [tribeReward, setTribeReward] = useState(null);
   const [travel, setTravel] = useState(null);
@@ -180,6 +183,7 @@ function App() {
         setEndingStep(0);
         setChoices([]);
         setTribeDecision(null);
+        setTribeReaction(null);
         setFinalDecision(null);
         setTribeReward(null);
         setTravel(null);
@@ -214,7 +218,12 @@ function App() {
       }
     };
 
+    const handleMemory = (event) => {
+      if (event.detail?.id) setMeta((current) => unlockMemory(current, event.detail.id));
+    };
+
     const handleTribeDecision = (event) => setTribeDecision(event.detail || null);
+    const handleTribeReaction = (event) => setTribeReaction(event.detail || null);
     const handleFinalDecision = (event) => setFinalDecision(event.detail || null);
     const handleTribeReward = (event) => setTribeReward(event.detail || null);
     const clearTribeReward = () => setTribeReward(null);
@@ -229,7 +238,9 @@ function App() {
     window.addEventListener('asadal:clearChoices', clearChoices);
     window.addEventListener('asadal:story', handleChapter);
     window.addEventListener('asadal:metaReward', handleMetaReward);
+    window.addEventListener('asadal:memory', handleMemory);
     window.addEventListener('asadal:tribeDecision', handleTribeDecision);
+    window.addEventListener('asadal:tribeReaction', handleTribeReaction);
     window.addEventListener('asadal:finalDecision', handleFinalDecision);
     window.addEventListener('asadal:tribeReward', handleTribeReward);
     window.addEventListener('asadal:clearTribeReward', clearTribeReward);
@@ -242,7 +253,9 @@ function App() {
       window.removeEventListener('asadal:clearChoices', clearChoices);
       window.removeEventListener('asadal:story', handleChapter);
       window.removeEventListener('asadal:metaReward', handleMetaReward);
+      window.removeEventListener('asadal:memory', handleMemory);
       window.removeEventListener('asadal:tribeDecision', handleTribeDecision);
+      window.removeEventListener('asadal:tribeReaction', handleTribeReaction);
       window.removeEventListener('asadal:finalDecision', handleFinalDecision);
       window.removeEventListener('asadal:tribeReward', handleTribeReward);
       window.removeEventListener('asadal:clearTribeReward', clearTribeReward);
@@ -274,7 +287,7 @@ function App() {
     gameOver: hud.gameOver,
     win: hud.win,
     hasChoices: choices.length > 0,
-    hasDecision: Boolean(tribeDecision || finalDecision),
+    hasDecision: Boolean(tribeDecision || tribeReaction || finalDecision),
     hasReward: Boolean(tribeReward),
     travelling: Boolean(travel),
   });
@@ -360,6 +373,7 @@ function App() {
     setChoices([]);
     setChapter(null);
     setTribeDecision(null);
+    setTribeReaction(null);
     setFinalDecision(null);
     setTribeReward(null);
     setTravel(null);
@@ -388,6 +402,11 @@ function App() {
   const chooseFinalDecision = (choice) => {
     setFinalDecision(null);
     window.dispatchEvent(new CustomEvent('asadal:finalDecisionChoice', { detail: { choice } }));
+  };
+
+  const continueTribeReaction = () => {
+    setTribeReaction(null);
+    window.dispatchEvent(new CustomEvent('asadal:continueTribeReaction'));
   };
 
   const chooseTribeReward = (choice) => {
@@ -513,6 +532,7 @@ function App() {
                 <div className="meta-summary" aria-label="영구 진행 현황">
                   <span><strong>{meta.trainingPoints}</strong> 수련점</span>
                   <span><strong>{meta.unlockedEndings.length}/{ENDINGS.length}</strong> 엔딩</span>
+                  <span><strong>{meta.unlockedMemories.length}/{MEMORIES.length}</strong> 기억</span>
                   <span><strong>{meta.runsStarted}</strong> 출정</span>
                 </div>
                 <div className="menu-actions">
@@ -612,6 +632,24 @@ function App() {
                         <span>{unlocked ? scene.body : ending.hint}</span>
                       </span>
                     </button>
+                  );
+                })}
+              </div>
+              <div className="memory-heading">
+                <h3>여정의 기억</h3>
+                <span>{meta.unlockedMemories.length}/{MEMORIES.length}</span>
+              </div>
+              <div className="memory-grid">
+                {MEMORIES.map((memory) => {
+                  const unlocked = meta.unlockedMemories.includes(memory.id);
+                  return (
+                    <article className={`memory-record ${unlocked ? 'unlocked' : 'locked'}`} key={memory.id}>
+                      <span className="memory-mark" aria-hidden="true">{unlocked ? '◆' : '◇'}</span>
+                      <div>
+                        <strong>{unlocked ? memory.name : '아직 흐릿한 기억'}</strong>
+                        <p>{unlocked ? memory.description : '여정 속 특별한 선택과 만남이 이 기록을 깨웁니다.'}</p>
+                      </div>
+                    </article>
                   );
                 })}
               </div>
@@ -725,13 +763,27 @@ function App() {
               <div className="decision-grid">
                 <button type="button" onClick={() => chooseTribeDecision('spare')}>
                   <strong>무기를 거두고 설득한다</strong>
-                  <span>즉시 스테이지 완료 · 악명 감소 · 부족 신뢰 증가</span>
+                  <span>50% 설득 성공 · 저항하더라도 이후 처치 악명 ×0.5</span>
                 </button>
                 <button type="button" className="danger-choice" onClick={() => chooseTribeDecision('fight')}>
                   <strong>끝까지 제압한다</strong>
-                  <span>전투 지속 · 경험치 확보 · 악명 증가</span>
+                  <span>90% 결사항전 · 10% 도주 · 도주자 처치 악명 ×5</span>
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {tribeReaction && (
+          <div className="choice-overlay">
+            <div className={`choice-panel reaction-panel reaction-${tribeReaction.outcome}`}>
+              <p className="eyebrow">{tribeReaction.tribe} 부족의 대답</p>
+              <h2>{tribeReaction.title}</h2>
+              <p>{tribeReaction.body}</p>
+              <div className="reaction-consequence">{tribeReaction.consequence}</div>
+              <button type="button" onClick={continueTribeReaction}>
+                {tribeReaction.outcome === 'accept' ? '다음 여정을 준비한다' : '그들의 선택을 받아들인다'}
+              </button>
             </div>
           </div>
         )}

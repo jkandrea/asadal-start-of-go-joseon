@@ -47,6 +47,15 @@ export const canProposeTigerAlliance = ({ reputation, sparedTribes, followers })
   reputation >= 45 && reputation < 70 && sparedTribes <= 2 && followers >= 2
 );
 
+export function resolveTribeReaction(choice, roll = Math.random()) {
+  if (choice === 'spare') return roll < 0.5 ? 'accept' : 'resist';
+  return roll < 0.1 ? 'flee' : 'resist';
+}
+
+export const reputationForDefeat = (enemyType, scale = 1) => (
+  (enemyType === 'boss' ? 6 : 1) * scale
+);
+
 export function resolveEnding({ reputation, sparedTribes, followers, runsStarted, foundForgottenTribe, tigerAlliance }) {
   if (tigerAlliance && canProposeTigerAlliance({ reputation, sparedTribes, followers })) return 'jinguk';
   if (sparedTribes >= 4 && followers >= 2 && reputation <= 12) return 'asadal';
