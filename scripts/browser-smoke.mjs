@@ -38,7 +38,13 @@ const waitFor = async (expression, timeout = 30000) => {
     if (await evaluate(expression)) return;
     await new Promise((resolve) => setTimeout(resolve, 150));
   }
-  throw new Error(`Timed out waiting for: ${expression}`);
+  const snapshot = await evaluate(`({
+    url: location.href,
+    title: document.title,
+    body: document.body?.innerText?.slice(0, 500) || '',
+    html: document.body?.innerHTML?.slice(0, 500) || '',
+  })`);
+  throw new Error(`Timed out waiting for: ${expression}\n${JSON.stringify(snapshot, null, 2)}`);
 };
 
 const clickButton = async (label) => {
@@ -56,6 +62,24 @@ if (savedLevel !== 1) throw new Error('Training investment was not persisted');
 await clickButton('돌아가기');
 await clickButton('기억의 전당');
 await waitFor("document.querySelectorAll('.ending-memory').length === 7");
+const uniqueEndingArt = await evaluate("new Set([...document.querySelectorAll('.ending-memory')].map((card) => card.style.getPropertyValue('--ending-image'))).size");
+if (uniqueEndingArt !== 7) throw new Error(`Expected 7 distinct ending illustrations, found ${uniqueEndingArt}`);
+await clickButton('마을로 돌아가기');
+await evaluate(`(() => {
+  const meta = JSON.parse(localStorage.getItem('asadal.meta.v1'));
+  meta.unlockedEndings = ['asadal'];
+  localStorage.setItem('asadal.meta.v1', JSON.stringify(meta));
+  location.reload();
+  return true;
+})()`);
+await waitFor("document.body.innerText.includes('새 출정')");
+await clickButton('기억의 전당');
+await waitFor("document.querySelectorAll('.ending-memory.unlocked').length === 1");
+await clickButton('아사달');
+await waitFor("document.body.innerText.includes('환웅과 웅 사이에서 한 아이가 태어났다')");
+await clickButton('마지막 장면');
+await waitFor("document.body.innerText.includes('곰과 호랑이, 그리고 하늘에서 내려온 신')");
+await clickButton('기억의 전당으로');
 await clickButton('마을로 돌아가기');
 await clickButton('새 출정');
 await waitFor("document.body.innerText.includes('프롤로그')");

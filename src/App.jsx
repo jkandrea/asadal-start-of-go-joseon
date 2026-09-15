@@ -68,8 +68,8 @@ const prologueScenes = [
 const endingStories = {
   asadal: {
     title: '서로 다른 토템 아래, 하나의 터전이 시작되었다',
-    body: '환웅과 웅, 그리고 뜻을 모은 부족들은 새로운 나라를 세웠다. 그 뒤를 이은 단군왕검은 사람을 널리 이롭게 한다는 뜻으로 고조선을 열었다.',
-    epilogue: '이 이야기는 훗날 곰과 호랑이의 우화로 표현된 고조선 건국 설화가 되어 오래도록 전해 내려갔다고 한다.',
+    body: '환웅과 웅 사이에서 한 아이가 태어났다. 아이는 자라 단군왕검이 되었고, 사람을 널리 이롭게 하겠다는 뜻으로 아사달에 새로운 나라를 세웠다.',
+    epilogue: '서로 다른 부족들이 함께 세운 그 나라는 훗날 고조선이라 불리게 되었다. 그리고 이들의 이야기는 오랜 세월을 지나, 곰과 호랑이, 그리고 하늘에서 내려온 신의 이야기가 되어 전해졌다고 한다.',
   },
   conqueror: {
     title: '호랑이를 몰아낸 자가 그 자리를 차지했다',
@@ -103,6 +103,10 @@ const endingStories = {
   },
 };
 
+const endingIllustrations = Object.fromEntries(
+  ENDINGS.map(({ id }) => [id, `/assets/ending-${id.replaceAll('_', '-')}.jpg`]),
+);
+
 const getEndingScenes = (ending) => {
   const endingMeta = ENDINGS.find(({ id }) => id === ending) || ENDINGS[3];
   const story = endingStories[ending] || endingStories.tiger_heir;
@@ -131,6 +135,8 @@ function App() {
   const [choiceMeta, setChoiceMeta] = useState({ label: '가르침', remaining: null, selected: [] });
   const [showIntro, setShowIntro] = useState(true);
   const [menuView, setMenuView] = useState('home');
+  const [galleryEnding, setGalleryEnding] = useState(null);
+  const [galleryEndingStep, setGalleryEndingStep] = useState(0);
   const [gameReady, setGameReady] = useState(false);
   const [gameLoading, setGameLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
@@ -570,11 +576,24 @@ function App() {
                   const unlocked = meta.unlockedEndings.includes(ending.id);
                   const scene = getEndingScenes(ending.id)[1];
                   return (
-                    <article className={`ending-memory ${unlocked ? 'unlocked' : 'locked'}`} key={ending.id}>
-                      <span className="ending-code">{unlocked ? ending.code : '미발견'}</span>
-                      <h3>{unlocked ? ending.name : '잠긴 기억'}</h3>
-                      <p>{unlocked ? scene.body : ending.hint}</p>
-                    </article>
+                    <button
+                      type="button"
+                      className={`ending-memory ${unlocked ? 'unlocked' : 'locked'}`}
+                      key={ending.id}
+                      style={{ '--ending-image': `url(${endingIllustrations[ending.id]})` }}
+                      onClick={() => {
+                        if (!unlocked) return;
+                        setGalleryEnding(ending.id);
+                        setGalleryEndingStep(0);
+                      }}
+                      aria-label={unlocked ? `${ending.name} 엔딩 다시 보기` : `${ending.name} 엔딩 미발견`}
+                    >
+                      <span className="ending-memory-copy">
+                        <span className="ending-code">{unlocked ? ending.code : '미발견'}</span>
+                        <strong>{unlocked ? ending.name : '잠긴 기억'}</strong>
+                        <span>{unlocked ? scene.body : ending.hint}</span>
+                      </span>
+                    </button>
                   );
                 })}
               </div>
@@ -582,6 +601,34 @@ function App() {
             </div>
           </div>
         )}
+
+        {showIntro && galleryEnding && (() => {
+          const scenes = getEndingScenes(galleryEnding);
+          const scene = scenes[Math.min(galleryEndingStep, scenes.length - 1)];
+          return (
+            <div className="overlay story-overlay gallery-story-overlay">
+              <div
+                className="story-card ending-card"
+                style={{ '--story-image': `url(${endingIllustrations[galleryEnding]})` }}
+              >
+                <div className="story-copy">
+                  <p className="eyebrow">기억의 전당 · {scene.eyebrow}</p>
+                  <h2>{scene.title}</h2>
+                  <p>{scene.body}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (galleryEndingStep < scenes.length - 1) setGalleryEndingStep((step) => step + 1);
+                      else setGalleryEnding(null);
+                    }}
+                  >
+                    {galleryEndingStep < scenes.length - 1 ? '마지막 장면' : '기억의 전당으로'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {prologueStep >= 0 && (
           <div className="overlay story-overlay">
@@ -728,7 +775,10 @@ function App() {
           const scene = endingScenes[Math.min(endingStep, endingScenes.length - 1)];
           return (
             <div className="overlay story-overlay ending-overlay">
-              <div className="story-card ending-card" style={{ '--story-image': 'url(/assets/story-ending.png)' }}>
+              <div
+                className="story-card ending-card"
+                style={{ '--story-image': `url(${endingIllustrations[hud.ending] || '/assets/story-ending.png'})` }}
+              >
                 <div className="story-copy">
                   <p className="eyebrow">{scene.eyebrow}</p>
                   <h2>{scene.title}</h2>
