@@ -1887,8 +1887,36 @@ function bootAsadalGame(container, options = {}) {
         const onChooseTribeReward = (event) => {
           const choice = event.detail?.choice;
           const tribe = event.detail?.tribe || currentBattleTribe;
-          if (choice === 'follower') recruitFollower(tribe);
-          else applyTribePower(tribe);
+          if (choice === 'follower') {
+            if (!followers.some((follower) => follower.tribe === tribe) && followers.length >= 3) {
+              const incoming = tribeRewards[tribe] || tribeRewards.쥐;
+              window.dispatchEvent(new CustomEvent('asadal:followerReplacement', {
+                detail: {
+                  incomingTribe: tribe,
+                  incomingName: incoming.follower,
+                  followers: followers.map((follower) => ({
+                    tribe: follower.tribe,
+                    name: (tribeRewards[follower.tribe] || tribeRewards.쥐).follower,
+                  })),
+                },
+              }));
+              return;
+            }
+            recruitFollower(tribe);
+          } else applyTribePower(tribe);
+          skillSelectionOpen = false;
+          window.dispatchEvent(new CustomEvent('asadal:clearTribeReward'));
+          tryAdvanceStage();
+        };
+
+        const onReplaceFollower = (event) => {
+          const outgoingTribe = event.detail?.outgoingTribe;
+          const incomingTribe = event.detail?.incomingTribe || currentBattleTribe;
+          const index = followers.findIndex((follower) => follower.tribe === outgoingTribe);
+          if (index < 0 || followers.some((follower) => follower.tribe === incomingTribe)) return;
+          const [replaced] = followers.splice(index, 1);
+          replaced.sprite?.destroy();
+          recruitFollower(incomingTribe);
           skillSelectionOpen = false;
           window.dispatchEvent(new CustomEvent('asadal:clearTribeReward'));
           tryAdvanceStage();
@@ -1952,6 +1980,7 @@ function bootAsadalGame(container, options = {}) {
         window.addEventListener('asadal:tribeDecisionChoice', onTribeDecision);
         window.addEventListener('asadal:continueTribeReaction', onContinueTribeReaction);
         window.addEventListener('asadal:chooseTribeReward', onChooseTribeReward);
+        window.addEventListener('asadal:replaceFollower', onReplaceFollower);
         window.addEventListener('asadal:finalDecisionChoice', onFinalDecision);
         window.addEventListener('asadal:continueTravel', onContinueTravel);
         window.addEventListener('asadal:setPaused', onSetPaused);
@@ -1971,6 +2000,7 @@ function bootAsadalGame(container, options = {}) {
           window.removeEventListener('asadal:tribeDecisionChoice', onTribeDecision);
           window.removeEventListener('asadal:continueTribeReaction', onContinueTribeReaction);
           window.removeEventListener('asadal:chooseTribeReward', onChooseTribeReward);
+          window.removeEventListener('asadal:replaceFollower', onReplaceFollower);
           window.removeEventListener('asadal:finalDecisionChoice', onFinalDecision);
           window.removeEventListener('asadal:continueTravel', onContinueTravel);
           window.removeEventListener('asadal:setPaused', onSetPaused);

@@ -86,6 +86,22 @@ await clickButton('기억의 전당');
 await waitFor("document.querySelectorAll('.ending-memory.unlocked').length === 1");
 await clickButton('아사달');
 await waitFor("document.body.innerText.includes('환웅과 웅 사이에서 한 아이가 태어났다')");
+await waitFor("document.querySelector('.ending-artwork img')?.complete === true");
+const endingArtworkLayout = await evaluate(`(() => {
+  const artwork = document.querySelector('.ending-artwork');
+  const image = artwork?.querySelector('img');
+  const copy = document.querySelector('.ending-card .story-copy');
+  const artRect = artwork?.getBoundingClientRect();
+  const copyRect = copy?.getBoundingClientRect();
+  return {
+    objectFit: image ? getComputedStyle(image).objectFit : '',
+    artHeight: artRect?.height || 0,
+    separated: Boolean(artRect && copyRect && artRect.bottom <= copyRect.top + 1),
+  };
+})()`);
+if (endingArtworkLayout.objectFit !== 'contain' || endingArtworkLayout.artHeight < 100 || !endingArtworkLayout.separated) {
+  throw new Error(`Ending artwork is cropped or covered: ${JSON.stringify(endingArtworkLayout)}`);
+}
 await clickButton('마지막 장면');
 await waitFor("document.body.innerText.includes('곰과 호랑이, 그리고 하늘에서 내려온 신')");
 await clickButton('기억의 전당으로');
@@ -123,6 +139,7 @@ await waitFor("document.querySelector('.reaction-panel') === null");
 
 await evaluate("window.dispatchEvent(new CustomEvent('asadal:tribeReward', { detail: { tribe: '돼지', power: { id: 'power', name: '풍요의 몫', description: '고유 능력' }, follower: { id: 'follower', name: '복주머니 짐꾼', description: '부하' } } })); true");
 await waitFor("document.body.innerText.includes('다음 여정에 가져갈 힘')");
+await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
 const rewardLayout = await evaluate(`(() => {
   const cards = [...document.querySelectorAll('.reward-grid .skill-card')];
   const first = cards[0]?.getBoundingClientRect();
@@ -134,6 +151,17 @@ if (rewardLayout.count !== 2 || rewardLayout.secondTop < rewardLayout.firstBotto
 }
 await clickButton('풍요의 몫');
 await waitFor("document.querySelector('.reward-panel') === null");
+
+await evaluate(`window.dispatchEvent(new CustomEvent('asadal:followerReplacement', { detail: {
+  incomingTribe: '돼지', incomingName: '복주머니 짐꾼', followers: [
+    { tribe: '쥐', name: '굴쥐 대장' },
+    { tribe: '소', name: '뿔방패 수호자' },
+    { tribe: '토끼', name: '달빛 궁수' },
+  ],
+} })); true`);
+await waitFor("document.querySelectorAll('.follower-replacement-list button').length === 3");
+await clickButton('뿔방패 수호자');
+await waitFor("document.querySelector('.follower-replacement-panel') === null");
 
 await evaluate("window.dispatchEvent(new CustomEvent('asadal:travel', { detail: { from: '양', to: '돼지', stage: 2 } })); true");
 await waitFor("document.querySelector('.travel-scene') !== null");

@@ -163,6 +163,7 @@ function App() {
   const [tribeReaction, setTribeReaction] = useState(null);
   const [finalDecision, setFinalDecision] = useState(null);
   const [tribeReward, setTribeReward] = useState(null);
+  const [followerReplacement, setFollowerReplacement] = useState(null);
   const [travel, setTravel] = useState(null);
   const [tribeNotice, setTribeNotice] = useState('');
   const [endingStep, setEndingStep] = useState(0);
@@ -186,6 +187,7 @@ function App() {
         setTribeReaction(null);
         setFinalDecision(null);
         setTribeReward(null);
+        setFollowerReplacement(null);
         setTravel(null);
         setMeta((current) => unlockEnding(current, detail.ending));
       }
@@ -226,6 +228,10 @@ function App() {
     const handleTribeReaction = (event) => setTribeReaction(event.detail || null);
     const handleFinalDecision = (event) => setFinalDecision(event.detail || null);
     const handleTribeReward = (event) => setTribeReward(event.detail || null);
+    const handleFollowerReplacement = (event) => {
+      setTribeReward(null);
+      setFollowerReplacement(event.detail || null);
+    };
     const clearTribeReward = () => setTribeReward(null);
     const handleTravel = (event) => setTravel(event.detail || null);
     const handleTribeEvent = (event) => {
@@ -243,6 +249,7 @@ function App() {
     window.addEventListener('asadal:tribeReaction', handleTribeReaction);
     window.addEventListener('asadal:finalDecision', handleFinalDecision);
     window.addEventListener('asadal:tribeReward', handleTribeReward);
+    window.addEventListener('asadal:followerReplacement', handleFollowerReplacement);
     window.addEventListener('asadal:clearTribeReward', clearTribeReward);
     window.addEventListener('asadal:travel', handleTravel);
     window.addEventListener('asadal:tribeEvent', handleTribeEvent);
@@ -258,6 +265,7 @@ function App() {
       window.removeEventListener('asadal:tribeReaction', handleTribeReaction);
       window.removeEventListener('asadal:finalDecision', handleFinalDecision);
       window.removeEventListener('asadal:tribeReward', handleTribeReward);
+      window.removeEventListener('asadal:followerReplacement', handleFollowerReplacement);
       window.removeEventListener('asadal:clearTribeReward', clearTribeReward);
       window.removeEventListener('asadal:travel', handleTravel);
       window.removeEventListener('asadal:tribeEvent', handleTribeEvent);
@@ -288,7 +296,7 @@ function App() {
     win: hud.win,
     hasChoices: choices.length > 0,
     hasDecision: Boolean(tribeDecision || tribeReaction || finalDecision),
-    hasReward: Boolean(tribeReward),
+    hasReward: Boolean(tribeReward || followerReplacement),
     travelling: Boolean(travel),
   });
 
@@ -376,6 +384,7 @@ function App() {
     setTribeReaction(null);
     setFinalDecision(null);
     setTribeReward(null);
+    setFollowerReplacement(null);
     setTravel(null);
     setTribeNotice('');
     setPrologueStep(-1);
@@ -413,6 +422,14 @@ function App() {
     if (!tribeReward) return;
     window.dispatchEvent(new CustomEvent('asadal:chooseTribeReward', {
       detail: { choice, tribe: tribeReward.tribe },
+    }));
+  };
+
+  const replaceFollower = (outgoingTribe) => {
+    if (!followerReplacement) return;
+    setFollowerReplacement(null);
+    window.dispatchEvent(new CustomEvent('asadal:replaceFollower', {
+      detail: { outgoingTribe, incomingTribe: followerReplacement.incomingTribe },
     }));
   };
 
@@ -667,6 +684,9 @@ function App() {
                 className="story-card ending-card"
                 style={{ '--story-image': `url(${endingIllustrations[galleryEnding]})` }}
               >
+                <div className="ending-artwork">
+                  <img src={endingIllustrations[galleryEnding]} alt={`${ENDINGS.find(({ id }) => id === galleryEnding)?.name || '결말'} 삽화`} />
+                </div>
                 <div className="story-copy">
                   <p className="eyebrow">기억의 전당 · {scene.eyebrow}</p>
                   <h2>{scene.title}</h2>
@@ -836,6 +856,27 @@ function App() {
           </div>
         )}
 
+        {followerReplacement && (
+          <div className="choice-overlay">
+            <div className="choice-panel follower-replacement-panel">
+              <p className="eyebrow">부하 정원 초과 · {followerReplacement.incomingTribe} 부족</p>
+              <h2>{followerReplacement.incomingName}와 함께할 자리를 정하세요</h2>
+              <p>이미 세 명이 웅을 따르고 있습니다. 돌려보낼 부하를 직접 선택하세요.</p>
+              <div className="follower-replacement-list">
+                {followerReplacement.followers.map((follower) => (
+                  <button type="button" key={follower.tribe} onClick={() => replaceFollower(follower.tribe)}>
+                    <span>
+                      <strong>{follower.name}</strong>
+                      <small>{follower.tribe} 부족</small>
+                    </span>
+                    <span className="replace-label">돌려보내기</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {tribeNotice && <div className="tribe-notice" role="status">{tribeNotice}</div>}
 
         {chapter && !hud.win && (
@@ -877,6 +918,9 @@ function App() {
                 className="story-card ending-card"
                 style={{ '--story-image': `url(${endingIllustrations[hud.ending] || '/assets/story-ending.png'})` }}
               >
+                <div className="ending-artwork">
+                  <img src={endingIllustrations[hud.ending] || '/assets/story-ending.png'} alt={`${ENDINGS.find(({ id }) => id === hud.ending)?.name || '결말'} 삽화`} />
+                </div>
                 <div className="story-copy">
                   <p className="eyebrow">{scene.eyebrow}</p>
                   <h2>{scene.title}</h2>
