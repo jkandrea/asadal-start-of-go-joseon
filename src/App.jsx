@@ -29,6 +29,7 @@ const pickTribePair = () => {
 const initialHud = {
   health: 100,
   maxHealth: 100,
+  shield: 0,
   xp: 0,
   level: 1,
   stage: 1,
@@ -472,6 +473,7 @@ function App() {
               <span className="label">체력</span>
               <strong>
                 {Math.ceil(hud.health)} / {Math.ceil(hud.maxHealth)}
+                {hud.shield > 0 ? ` + 보호 ${Math.ceil(hud.shield)}` : ''}
               </strong>
             </div>
             <div className="hud-pill">
@@ -861,13 +863,15 @@ function App() {
             <div className="choice-panel follower-replacement-panel">
               <p className="eyebrow">부하 정원 초과 · {followerReplacement.incomingTribe} 부족</p>
               <h2>{followerReplacement.incomingName}와 함께할 자리를 정하세요</h2>
-              <p>이미 세 명이 웅을 따르고 있습니다. 돌려보낼 부하를 직접 선택하세요.</p>
+              <p className="incoming-follower-description">새 부하: {followerReplacement.incomingDescription}</p>
+              <p>이미 세 명이 웅을 따르고 있습니다. 아래 행동을 비교해 돌려보낼 부하를 직접 선택하세요.</p>
               <div className="follower-replacement-list">
                 {followerReplacement.followers.map((follower) => (
                   <button type="button" key={follower.tribe} onClick={() => replaceFollower(follower.tribe)}>
                     <span>
                       <strong>{follower.name}</strong>
                       <small>{follower.tribe} 부족</small>
+                      <small className="follower-behavior">{follower.description}</small>
                     </span>
                     <span className="replace-label">돌려보내기</span>
                   </button>

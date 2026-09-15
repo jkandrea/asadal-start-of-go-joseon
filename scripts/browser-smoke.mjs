@@ -137,8 +137,9 @@ await waitFor("document.body.innerText.includes('전사들도 끝까지 맞서�
 await clickButton('그들의 선택을 받아들인다');
 await waitFor("document.querySelector('.reaction-panel') === null");
 
-await evaluate("window.dispatchEvent(new CustomEvent('asadal:tribeReward', { detail: { tribe: '돼지', power: { id: 'power', name: '풍요의 몫', description: '고유 능력' }, follower: { id: 'follower', name: '복주머니 짐꾼', description: '부하' } } })); true");
+await evaluate("window.dispatchEvent(new CustomEvent('asadal:tribeReward', { detail: { tribe: '돼지', power: { id: 'power', name: '풍요의 몫', description: '경험치 획득량 +15%. 경험치 40마다 최대 체력과 공격력이 성장합니다.' }, follower: { id: 'follower', name: '복주머니 짐꾼', description: '처치 보상 25회마다 웅의 공격력을 높이고 체력을 회복합니다.' } } })); true");
 await waitFor("document.body.innerText.includes('다음 여정에 가져갈 힘')");
+await waitFor("document.body.innerText.includes('경험치 획득량 +15%') && document.body.innerText.includes('처치 보상 25회')");
 await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
 const rewardLayout = await evaluate(`(() => {
   const cards = [...document.querySelectorAll('.reward-grid .skill-card')];
@@ -153,13 +154,14 @@ await clickButton('풍요의 몫');
 await waitFor("document.querySelector('.reward-panel') === null");
 
 await evaluate(`window.dispatchEvent(new CustomEvent('asadal:followerReplacement', { detail: {
-  incomingTribe: '돼지', incomingName: '복주머니 짐꾼', followers: [
-    { tribe: '쥐', name: '굴쥐 대장' },
-    { tribe: '소', name: '뿔방패 수호자' },
-    { tribe: '토끼', name: '달빛 궁수' },
+  incomingTribe: '돼지', incomingName: '복주머니 짐꾼', incomingDescription: '성장 지원 부하', followers: [
+    { tribe: '쥐', name: '굴쥐 대장', description: '처치할수록 빠르게 무는 근거리 부하' },
+    { tribe: '소', name: '뿔방패 수호자', description: '돌진하며 투사체를 막는 호위 부하' },
+    { tribe: '토끼', name: '달빛 궁수', description: '무피격 중 빠르게 쏘는 원거리 부하' },
   ],
 } })); true`);
 await waitFor("document.querySelectorAll('.follower-replacement-list button').length === 3");
+await waitFor("document.body.innerText.includes('돌진하며 투사체를 막는 호위 부하')");
 await clickButton('뿔방패 수호자');
 await waitFor("document.querySelector('.follower-replacement-panel') === null");
 

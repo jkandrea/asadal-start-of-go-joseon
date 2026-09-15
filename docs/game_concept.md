@@ -14,6 +14,14 @@ Web 프로토타입 → Android → 추후 iOS
 Unity 미사용
 React + Phaser + Capacitor 기반
 
+### 관련 제작 문서
+
+- [현재 구현 현황](implementation_status.md): 플레이 가능한 범위와 장기 설계 구분
+- [플레이 가능한 프로토타입 구현 상세](implemented_features_detail.md): 홈부터 엔딩까지 현재 추가된 작업 전체
+- [부족 보상 전투 구현 상세](tribe_rewards_implementation.md): 11개 고유 능력과 11개 부하의 실제 코드 동작, UI, 검증, 남은 차이
+- [Android APK·AAB 패키징 계획](android_packaging_guide.md): 현재 빌드 가능 여부, Capacitor 적용 절차, 원스토어 제출 준비
+- [개발 일지](development_log.md): 날짜별 변경 이력
+
 ---
 
 # 1. 게임 한 줄 소개
@@ -340,7 +348,7 @@ React + Phaser + Capacitor 기반
 
 각 강화는 최대 5레벨이며 한 번 선택할 때마다 1레벨 오른다. 레벨업 시 서로 다른 강화 3개가 제시되고, 각 맵에서 한 번 무료로 후보를 다시 뽑을 수 있다. 현재 맵의 강화를 모두 최대치로 만들었다면 이후 레벨업은 최대 체력의 10% 회복과 골드 획득 중 하나로 바뀐다.
 
-부족 보스를 쓰러뜨리고 얻는 13장의 **고유 능력 또는 부하**는 이 일반 레벨업과 별개의 완성 보상이다.
+일반 11개 부족의 보스를 쓰러뜨리고 얻는 **고유 능력 또는 부하**는 이 일반 레벨업과 별개의 완성 보상이다. 현재 프로토타입에서 실제로 동작하는 수치와 기획 대비 차이는 [부족 보상 전투 구현 상세](tribe_rewards_implementation.md)에 기록한다.
 
 ### 부족별 레벨업 목록
 
@@ -603,6 +611,8 @@ React + Phaser + Capacitor 기반
 호랑이 부족은 일반 영입 대상이 아니므로 회차 진행 보상으로만 등장한다. 시작 부하로 외눈 추적자를 선택하면 첫 번째 부하 슬롯을 사용한다.
 
 이 선택 구조 때문에 같은 부족 조합이라도 웅 자신을 강화할지, 자동 전투 부대를 완성할지에 따라 매 판의 빌드가 달라진다.
+
+보상 획득부터 세 자리 교체 UI, 피해 계산, 상태 정리까지의 구현 구조는 [부족 보상 전투 구현 상세](tribe_rewards_implementation.md)를 따른다.
 
 ---
 
@@ -1736,12 +1746,14 @@ Android Studio
   ↓
 APK / AAB
   ↓
-Google Play
+원스토어 / Google Play
 ```
 
 즉 처음부터 Android 전용으로 만들 필요가 없다.
 
 PC 브라우저에서 게임을 실행하면서 개발할 수 있다.
+
+현재 저장소는 이 흐름 중 `웹 브라우저에서 테스트` 단계까지 구성되어 있다. Capacitor와 `android/` 프로젝트는 아직 추가되지 않았으며, 실제 APK·AAB 생성 조건과 순서는 [Android APK·AAB 패키징 계획](android_packaging_guide.md)에 정리한다.
 
 ---
 

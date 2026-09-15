@@ -917,6 +917,19 @@ button:disabled {
   color: #bca98d;
 }
 
+.incoming-follower-description {
+  padding: 10px 12px;
+  border-left: 2px solid #d8953c;
+  background: rgba(102, 65, 28, 0.18);
+  color: #efd09b !important;
+  font-size: 0.82rem !important;
+}
+
+.follower-replacement-list .follower-behavior {
+  color: #d8c9b1;
+  line-height: 1.45;
+}
+
 .replace-label {
   flex: none;
   color: #efa789;
