@@ -511,7 +511,23 @@ button:disabled {
 }
 
 .reward-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.reward-grid .skill-card {
+  width: 100%;
+  min-height: 0;
+  padding: 18px;
+}
+
+.reward-grid .skill-header {
+  flex-wrap: wrap;
+}
+
+.reward-grid .skill-desc {
+  line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
 .travel-overlay {

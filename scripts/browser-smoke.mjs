@@ -116,6 +116,15 @@ await waitFor("document.querySelector('.decision-panel') === null");
 
 await evaluate("window.dispatchEvent(new CustomEvent('asadal:tribeReward', { detail: { tribe: '돼지', power: { id: 'power', name: '풍요의 몫', description: '고유 능력' }, follower: { id: 'follower', name: '복주머니 짐꾼', description: '부하' } } })); true");
 await waitFor("document.body.innerText.includes('다음 여정에 가져갈 힘')");
+const rewardLayout = await evaluate(`(() => {
+  const cards = [...document.querySelectorAll('.reward-grid .skill-card')];
+  const first = cards[0]?.getBoundingClientRect();
+  const second = cards[1]?.getBoundingClientRect();
+  return { count: cards.length, firstBottom: first?.bottom, secondTop: second?.top };
+})()`);
+if (rewardLayout.count !== 2 || rewardLayout.secondTop < rewardLayout.firstBottom) {
+  throw new Error(`Reward choices are not stacked vertically: ${JSON.stringify(rewardLayout)}`);
+}
 await clickButton('풍요의 몫');
 await waitFor("document.querySelector('.reward-panel') === null");
 
