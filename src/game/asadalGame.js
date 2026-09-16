@@ -129,7 +129,7 @@ const enemyTactics = {
 const tribeRewards = {
   쥐: {
     power: '끈질긴 생명',
-    powerDescription: '적 20명 처치마다 8초 동안 새끼 쥐를 소환합니다. 최대 5마리가 1초마다 공격력의 35% 피해를 줍니다.',
+    powerDescription: '획득 즉시, 이후 적 20명 처치마다 8초 동안 새끼 쥐를 소환합니다. 최대 5마리가 1초마다 공격력의 35% 피해를 줍니다.',
     follower: '굴쥐 대장',
     followerDescription: '1.2초마다 가까운 적을 물어 공격력의 45% 피해. 적 12명 처치마다 6초간 공격 주기가 0.6초가 됩니다.',
   },
@@ -171,7 +171,7 @@ const tribeRewards = {
   },
   원숭이: {
     power: '재주꾼의 손',
-    powerDescription: '근접 공격 적중 시 25% 확률로 다른 적에게 공격력의 80% 피해를 주는 돌멩이를 던집니다.',
+    powerDescription: '근접 공격 적중 시 25% 확률로 80% 피해의 돌을 던집니다. 돌은 한 번 더 튕겨 55% 피해를 줍니다.',
     follower: '돌팔매 재주꾼',
     followerDescription: '1.8초마다 공격력의 55% 돌을 던집니다. 돌은 다른 적 둘에게 튕기며 매번 피해가 20% 감소합니다.',
   },
@@ -189,9 +189,15 @@ const tribeRewards = {
   },
   돼지: {
     power: '풍요의 몫',
-    powerDescription: '경험치 획득량 +15%. 경험치 40을 모을 때마다 최대 체력 +2, 공격력 +1%가 최대 10회 적용됩니다.',
+    powerDescription: '경험치와 골드 획득량 +15%. 경험치 40을 모을 때마다 최대 체력 +2, 공격력 +1%가 최대 10회 적용됩니다.',
     follower: '복주머니 짐꾼',
-    followerDescription: '1.5초마다 적을 공격하고 처치 보상 25회마다 5초간 웅의 공격력을 15% 높이며 체력을 회복합니다.',
+    followerDescription: '주변 경험치와 골드를 끌어당깁니다. 정수 25개마다 5초간 공격력 +15%, 골드마다 10% 확률로 체력을 회복합니다.',
+  },
+  호랑이: {
+    power: '포식자의 발톱',
+    powerDescription: '보스에게 준 피해의 3%를 회복합니다. 보스 처치 시 공격력 +2%, 최대 10중첩됩니다.',
+    follower: '외눈 추적자',
+    followerDescription: '1.5초마다 체력이 가장 높은 적에게 75% 피해. 체력 30% 이하인 적에게 피해가 2배가 됩니다.',
   },
 };
 
@@ -212,6 +218,8 @@ const createPlayerState = () => ({
   attackRate: 0.7,
   attackRange: 72,
   xp: 0,
+  gold: 0,
+  experiencePickups: 0,
   xpToNext: 12,
   level: 1,
   reputation: 0,
@@ -234,6 +242,8 @@ const createPlayerState = () => ({
   burnTimer: 0,
   burnTickTimer: 0,
   shield: 0,
+  sheepShield: 0,
+  followerShield: 0,
   lastDamageAt: -10000,
   lastMoveAngle: 0,
   tribePowers: {},
@@ -254,6 +264,9 @@ const createPlayerState = () => ({
     dogMarkedEnemy: null,
     pigExperience: 0,
     pigGrowth: 0,
+    predatorHealWindow: 0,
+    predatorHealAmount: 0,
+    predatorGrowth: 0,
   },
   rage: 0,
   trainingLevels: {
@@ -314,6 +327,7 @@ const createEnemyState = (x, y, type = 'raider') => ({
   followerPoisonStacks: 0,
   followerPoisonTimer: 0,
   followerPoisonTick: 0,
+  chargeSlowTimer: 0,
 });
 
 function dispatchHud(state, stage, currentTribe) {
@@ -323,6 +337,7 @@ function dispatchHud(state, stage, currentTribe) {
       maxHealth: state.maxHealth,
       shield: state.shield ?? 0,
       xp: state.xp,
+      gold: state.gold ?? 0,
       level: state.level,
       stage,
       currentTribe,
@@ -419,6 +434,7 @@ function bootAsadalGame(container, options = {}) {
         this.load.image('ung-run-3', '/assets/ung-run-3.png');
         this.load.image('ung-run-4', '/assets/ung-run-4.png');
         this.load.image('ung-attack', '/assets/ung-attack.png');
+        this.load.image('summon-baby-rat', '/assets/summon-baby-rat.png');
         preloadTribes.map((tribe) => enemyArchetypes[tribe]).filter(Boolean).forEach(({ texture }) => {
           this.load.image(texture, `/assets/${texture}.png`);
           this.load.image(`${texture}-run-1`, `/assets/${texture}-run-1.png`);
@@ -438,6 +454,7 @@ function bootAsadalGame(container, options = {}) {
         const followers = [];
         const powerSummons = [];
         const projectiles = [];
+        const pickups = [];
         const floatingTexts = [];
         let userInput = { up: false, down: false, left: false, right: false };
         let spawnTimer = 0;
@@ -696,7 +713,7 @@ function bootAsadalGame(container, options = {}) {
             target: null,
             combo: 0,
             lastKillMilestone: Math.floor(player.kills / 12),
-            lastPigMilestone: Math.floor(player.kills / 25),
+            lastPigMilestone: Math.floor(player.experiencePickups / 25),
           });
         }
 
@@ -705,6 +722,7 @@ function bootAsadalGame(container, options = {}) {
           switch (tribe) {
             case '쥐':
               player.powerState.lastKillMilestone = Math.floor(player.kills / 20);
+              spawnRatSummon();
               break;
             case '토끼':
               player.speed *= 1.18;
@@ -729,6 +747,53 @@ function bootAsadalGame(container, options = {}) {
         function drawFollowerStrike(fromX, fromY, target, color = 0xbfe8c1, duration = 180) {
           const strike = scene.add.line(0, 0, fromX, fromY - 14, target.x, target.y - 12, color, 0.78).setDepth(14);
           scene.tweens.add({ targets: strike, alpha: 0, duration, onComplete: () => strike.destroy() });
+        }
+
+        function launchMonkeyStone(fromX, fromY, target) {
+          const stone = scene.add.circle(fromX, fromY - 8, 6, 0xe0b680, 1).setStrokeStyle(2, 0x6f4930, 1).setDepth(15);
+          const flyTo = (nextTarget, damage, canBounce) => {
+            if (!nextTarget || nextTarget.defeated) {
+              stone.destroy();
+              return;
+            }
+            scene.tweens.add({
+              targets: stone,
+              x: nextTarget.x,
+              y: nextTarget.y - 10,
+              duration: 150,
+              onComplete: () => {
+                if (!nextTarget.defeated) damageEnemy(nextTarget, damage);
+                if (!canBounce) {
+                  stone.destroy();
+                  return;
+                }
+                const bounce = activeEnemies()
+                  .filter((enemy) => enemy !== nextTarget)
+                  .sort((a, b) => (
+                    Phaser.Math.Distance.Between(nextTarget.x, nextTarget.y, a.x, a.y)
+                    - Phaser.Math.Distance.Between(nextTarget.x, nextTarget.y, b.x, b.y)
+                  ))[0];
+                if (bounce) flyTo(bounce, player.damage * 0.55, false);
+                else stone.destroy();
+              },
+            });
+          };
+          flyTo(target, player.damage * 0.8, true);
+        }
+
+        function syncShield() {
+          player.shield = Math.max(0, player.sheepShield) + Math.max(0, player.followerShield);
+        }
+
+        function setSheepShield(amount) {
+          player.sheepShield = Math.max(0, amount);
+          syncShield();
+        }
+
+        function setFollowerShield(amount, duration = 6000) {
+          player.followerShield = Math.max(0, amount);
+          player.followerShieldTimer = duration;
+          syncShield();
         }
 
         function activeEnemies() {
@@ -776,6 +841,7 @@ function bootAsadalGame(container, options = {}) {
             if (follower.tribe === '닭') cooldown = 12000;
             if (follower.tribe === '개') cooldown = 1000;
             if (follower.tribe === '돼지') cooldown = 1500;
+            if (follower.tribe === '호랑이') cooldown = 1500;
             if (follower.tribe === '쥐') {
               const milestone = Math.floor(player.kills / 12);
               if (milestone > follower.lastKillMilestone) {
@@ -799,7 +865,11 @@ function bootAsadalGame(container, options = {}) {
               });
               drawFollowerStrike(targetX, targetY, { x: targetX + Math.cos(facing) * 330, y: targetY + Math.sin(facing) * 330 }, 0xe5c18b, 260);
             } else if (follower.tribe === '용') {
-              const cluster = [...targets].sort((a, b) => b.health - a.health)[0];
+              const cluster = [...targets].sort((a, b) => {
+                const nearbyA = targets.filter((target) => Phaser.Math.Distance.Between(a.x, a.y, target.x, target.y) <= 105).length;
+                const nearbyB = targets.filter((target) => Phaser.Math.Distance.Between(b.x, b.y, target.x, target.y) <= 105).length;
+                return nearbyB - nearbyA || b.health - a.health;
+              })[0];
               for (let tick = 0; tick < 4; tick += 1) {
                 scene.time.delayedCall(tick * 500, () => {
                   if (scene.sys?.isActive()) damageEnemiesInRadius(cluster.x, cluster.y, 105, player.damage * 0.3);
@@ -827,8 +897,7 @@ function bootAsadalGame(container, options = {}) {
                 player.health = Math.min(player.maxHealth, player.health + player.maxHealth * 0.03);
                 spawnFloatingText(playerBody.x, playerBody.y - 24, '구름 치유', '#bfe8c1');
               } else {
-                player.shield = Math.max(player.shield, player.maxHealth * 0.05);
-                player.followerShieldTimer = 6000;
+                setFollowerShield(Math.max(player.followerShield, player.maxHealth * 0.05));
                 spawnFloatingText(playerBody.x, playerBody.y - 24, '구름 보호막', '#bfe8ff');
               }
             } else if (follower.tribe === '원숭이') {
@@ -855,18 +924,15 @@ function bootAsadalGame(container, options = {}) {
                 follower.combo = 0;
               }
               drawFollowerStrike(targetX, targetY, priority, finisher ? 0xffa67f : 0xbfe8c1);
+            } else if (follower.tribe === '호랑이') {
+              const priority = highestHealth;
+              const executeBonus = priority.health <= priority.maxHealth * 0.3 ? 2 : 1;
+              damageEnemy(priority, player.damage * 0.75 * executeBonus);
+              drawFollowerStrike(targetX, targetY, priority, executeBonus > 1 ? 0xff8a5b : 0xe0a34d, 220);
             } else {
               const scale = follower.tribe === '토끼' ? 0.7 : follower.tribe === '돼지' ? 0.5 : 0.45;
               damageEnemy(nearest, player.damage * scale, 5);
               drawFollowerStrike(targetX, targetY, nearest);
-              if (follower.tribe === '돼지') {
-                const milestone = Math.floor(player.kills / 25);
-                if (milestone > (follower.lastPigMilestone ?? 0)) {
-                  follower.lastPigMilestone = milestone;
-                  player.powerState.pigFollowerBuffTimer = 5000;
-                  player.health = Math.min(player.maxHealth, player.health + player.maxHealth * 0.01);
-                }
-              }
             }
             follower.attackTimer = 0;
           });
@@ -1174,6 +1240,67 @@ function bootAsadalGame(container, options = {}) {
           }
         }
 
+        function grantGold(amount) {
+          const gained = player.tribePowers.돼지 ? amount * 1.15 : amount;
+          player.gold += gained;
+        }
+
+        function triggerPigFollowerReward() {
+          followers.filter((follower) => follower.tribe === '돼지').forEach((follower) => {
+            const milestone = Math.floor(player.experiencePickups / 25);
+            if (milestone <= (follower.lastPigMilestone ?? 0)) return;
+            follower.lastPigMilestone = milestone;
+            player.powerState.pigFollowerBuffTimer = 5000;
+            spawnFloatingText(playerBody.x, playerBody.y - 28, '복주머니 기세', '#ffd38d');
+          });
+        }
+
+        function collectPickup(pickup) {
+          if (pickup.kind === 'experience') {
+            grantExperience(pickup.value);
+            player.experiencePickups += 1;
+            triggerPigFollowerReward();
+          } else {
+            grantGold(pickup.value);
+            if (followers.some((follower) => follower.tribe === '돼지') && Math.random() < 0.1) {
+              player.health = Math.min(player.maxHealth, player.health + player.maxHealth * 0.01);
+              spawnFloatingText(playerBody.x, playerBody.y - 24, '복주머니 회복', '#8ef1a7');
+            }
+          }
+          pickup.sprite?.destroy();
+          pickup.ring?.destroy();
+        }
+
+        function spawnPickup(x, y, kind, value) {
+          const isGold = kind === 'gold';
+          const ring = scene.add.circle(x, y, isGold ? 8 : 7, isGold ? 0xf1bd49 : 0x75d9d0, 0.22).setDepth(6);
+          const sprite = scene.add.circle(x, y, isGold ? 4 : 3.5, isGold ? 0xffd66f : 0xa8fff1, 0.96).setDepth(7);
+          pickups.push({ x, y, kind, value, sprite, ring, age: 0 });
+        }
+
+        function updatePickups(delta) {
+          const hasPigFollower = followers.some((follower) => follower.tribe === '돼지');
+          const magnetRange = hasPigFollower ? 250 : 72;
+          for (let index = pickups.length - 1; index >= 0; index -= 1) {
+            const pickup = pickups[index];
+            pickup.age += delta;
+            const distance = Phaser.Math.Distance.Between(pickup.x, pickup.y, playerBody.x, playerBody.y);
+            if (distance <= magnetRange) {
+              const speed = hasPigFollower ? 520 : 360;
+              const step = Math.min(distance, speed * delta / 1000);
+              const angle = Phaser.Math.Angle.Between(pickup.x, pickup.y, playerBody.x, playerBody.y);
+              pickup.x += Math.cos(angle) * step;
+              pickup.y += Math.sin(angle) * step;
+            }
+            pickup.sprite?.setPosition(pickup.x, pickup.y + Math.sin(pickup.age * 0.006) * 2);
+            pickup.ring?.setPosition(pickup.x, pickup.y).setScale(1 + Math.sin(pickup.age * 0.004) * 0.12);
+            if (distance <= 20) {
+              collectPickup(pickup);
+              pickups.splice(index, 1);
+            }
+          }
+        }
+
         function applyPlayerDamage(amount, canEvade = true) {
           if (amount <= 0 || player.health <= 0) return 0;
           if (canEvade && player.tribePowers.토끼 && player.powerState.rabbitEvadeReady) {
@@ -1183,8 +1310,15 @@ function bootAsadalGame(container, options = {}) {
             spawnFloatingText(playerBody.x, playerBody.y - 24, '달빛 회피', '#dce9ff');
             return 0;
           }
-          const absorbed = Math.min(player.shield, amount);
-          player.shield -= absorbed;
+          let remaining = amount;
+          const followerAbsorbed = Math.min(player.followerShield, remaining);
+          player.followerShield -= followerAbsorbed;
+          remaining -= followerAbsorbed;
+          const sheepAbsorbed = Math.min(player.sheepShield, remaining);
+          player.sheepShield -= sheepAbsorbed;
+          remaining -= sheepAbsorbed;
+          const absorbed = followerAbsorbed + sheepAbsorbed;
+          syncShield();
           const dealt = Math.max(0, amount - absorbed);
           player.health = Math.max(0, player.health - dealt);
           if (dealt > 0) player.lastDamageAt = worldTime;
@@ -1196,15 +1330,18 @@ function bootAsadalGame(container, options = {}) {
           while (powerSummons.length >= 5) {
             const oldest = powerSummons.shift();
             oldest.sprite?.destroy();
+            oldest.ring?.destroy();
           }
-          const archetype = enemyArchetypes.쥐;
-          const sprite = scene.add.image(playerBody.x, playerBody.y, archetype.texture)
-            .setOrigin(0.5, 0.8)
-            .setDisplaySize(archetype.width * 0.3, archetype.height * 0.3)
-            .setTint(0xe9d5a4)
-            .setDepth(8);
-          powerSummons.push({ sprite, life: 8000, attackTimer: 0, angle: Math.random() * Math.PI * 2 });
+          const ring = scene.add.circle(playerBody.x, playerBody.y, 22, 0xe9d5a4, 0.2).setDepth(9);
+          const sprite = scene.add.image(playerBody.x, playerBody.y, 'summon-baby-rat')
+            .setOrigin(0.5, 0.72)
+            .setDisplaySize(54, 54)
+            .setDepth(10);
+          powerSummons.push({ sprite, ring, life: 8000, attackTimer: 0, angle: Math.random() * Math.PI * 2 });
           spawnFloatingText(playerBody.x, playerBody.y - 24, '새끼 쥐 합류', '#e9d5a4');
+          window.dispatchEvent(new CustomEvent('asadal:summonState', {
+            detail: { type: 'baby-rat', count: powerSummons.length, texture: 'summon-baby-rat' },
+          }));
         }
 
         function updatePowerSummons(delta) {
@@ -1215,7 +1352,8 @@ function bootAsadalGame(container, options = {}) {
             summon.angle += delta * 0.0012;
             const x = playerBody.x + Math.cos(summon.angle) * (35 + index * 7);
             const y = playerBody.y + Math.sin(summon.angle) * 28;
-            summon.sprite?.setPosition(x, y).setDepth(8 + y / 1000).setFlipX(Math.cos(summon.angle) < 0);
+            summon.sprite?.setPosition(x, y - 4).setDepth(10 + y / 1000).setFlipX(Math.cos(summon.angle) < 0);
+            summon.ring?.setPosition(x, y + 7).setScale(1 + Math.sin(worldTime * 0.008 + index) * 0.1);
             if (summon.attackTimer >= 1000) {
               const target = activeEnemies().sort((a, b) => (
                 Phaser.Math.Distance.Between(x, y, a.x, a.y) - Phaser.Math.Distance.Between(x, y, b.x, b.y)
@@ -1228,6 +1366,7 @@ function bootAsadalGame(container, options = {}) {
             }
             if (summon.life <= 0) {
               summon.sprite?.destroy();
+              summon.ring?.destroy();
               powerSummons.splice(index, 1);
             }
           }
@@ -1241,7 +1380,7 @@ function bootAsadalGame(container, options = {}) {
           state.followerHasteTimer = Math.max(0, (state.followerHasteTimer ?? 0) - delta);
           state.pigFollowerBuffTimer = Math.max(0, (state.pigFollowerBuffTimer ?? 0) - delta);
           player.followerShieldTimer = Math.max(0, (player.followerShieldTimer ?? 0) - delta);
-          if (player.followerShieldTimer <= 0 && !player.tribePowers.양) player.shield = 0;
+          if (player.followerShieldTimer <= 0 && player.followerShield > 0) setFollowerShield(0, 0);
 
           if (player.tribePowers.토끼 && !state.rabbitEvadeReady && state.rabbitEvadeTimer <= 0) {
             state.rabbitEvadeReady = true;
@@ -1280,7 +1419,8 @@ function bootAsadalGame(container, options = {}) {
                 const side = Math.abs(-dx * Math.sin(movementAngle) + dy * Math.cos(movementAngle));
                 if (forward >= 0 && forward <= 190 && side <= 48) {
                   damageEnemy(enemy, player.damage * 2.2, 45);
-                  enemy.knockdownTimer = Math.max(enemy.knockdownTimer, enemy.type === 'boss' ? 0.5 : 2);
+                  if (enemy.type === 'boss') enemy.chargeSlowTimer = Math.max(enemy.chargeSlowTimer, 2000);
+                  else enemy.knockdownTimer = Math.max(enemy.knockdownTimer, 2);
                 }
               });
               state.oxCooldown = 6000;
@@ -1312,11 +1452,11 @@ function bootAsadalGame(container, options = {}) {
           if (player.tribePowers.양) {
             state.sheepTimer += delta;
             if (state.sheepTimer >= 12000) {
-              player.shield = player.maxHealth * 0.12;
+              setSheepShield(player.maxHealth * 0.12);
               state.sheepTimer = 0;
               spawnFloatingText(playerBody.x, playerBody.y - 26, '구름 양털', '#e8f1ff');
             }
-            if (player.shield > 0) player.health = Math.min(player.maxHealth, player.health + player.maxHealth * 0.006 * delta / 1000);
+            if (player.sheepShield > 0) player.health = Math.min(player.maxHealth, player.health + player.maxHealth * 0.006 * delta / 1000);
           }
 
           if (player.tribePowers.닭) {
@@ -1357,6 +1497,19 @@ function bootAsadalGame(container, options = {}) {
           const pigBuff = player.powerState.pigFollowerBuffTimer > 0 ? 1.15 : 1;
           const finalDamage = damage * markedBonus * pigBuff;
           enemy.health -= finalDamage;
+          if (player.tribePowers.호랑이 && enemy.type === 'boss') {
+            const state = player.powerState;
+            if (worldTime - state.predatorHealWindow >= 1000) {
+              state.predatorHealWindow = worldTime;
+              state.predatorHealAmount = 0;
+            }
+            const healCap = player.maxHealth * 0.01;
+            const healing = Math.max(0, Math.min(finalDamage * 0.03, healCap - state.predatorHealAmount));
+            if (healing > 0) {
+              player.health = Math.min(player.maxHealth, player.health + healing);
+              state.predatorHealAmount += healing;
+            }
+          }
           enemy.hitFlash = 0.12;
           enemy.hitPose = 0.2;
           spawnFloatingText(enemy.x, enemy.y - 18, `-${Math.max(1, Math.round(finalDamage))}`, '#ffd38d');
@@ -1380,14 +1533,22 @@ function bootAsadalGame(container, options = {}) {
             enemy.knockdownTimer = 0;
             enemy.attackRing?.setVisible(false);
             player.kills += 1;
-            grantExperience(enemy.type === 'boss' ? 25 : 8);
+            spawnPickup(enemy.x, enemy.y, 'experience', enemy.type === 'boss' ? 25 : 8);
+            if (enemy.type === 'boss' || Math.random() < 0.3) {
+              spawnPickup(enemy.x + 12, enemy.y + 4, 'gold', enemy.type === 'boss' ? 10 : 1);
+            }
             player.reputation += reputationForDefeat(
               enemy.type,
               enemy.reputationScale ?? (enemy.type === 'boss' ? 1 : stageReputationScale),
             );
-            spawnFloatingText(enemy.x, enemy.y - 20, enemy.type === 'boss' ? '+25' : '+8', '#8ef1a7');
+            spawnFloatingText(enemy.x, enemy.y - 20, enemy.type === 'boss' ? '전리품 +25' : '전리품 +8', '#8ef1a7');
             updateStageGoalText();
             if (enemy.type === 'boss') {
+              if (player.tribePowers.호랑이 && player.powerState.predatorGrowth < 10) {
+                player.powerState.predatorGrowth += 1;
+                player.damage *= 1.02;
+                spawnFloatingText(playerBody.x, playerBody.y - 30, '포식 성장 +2%', '#ffad69');
+              }
               bossSpawned = false;
               window.dispatchEvent(new CustomEvent('asadal:metaReward', {
                 detail: { type: 'boss', final: stage >= 6 },
@@ -1516,11 +1677,8 @@ function bootAsadalGame(container, options = {}) {
                   .sort((a, b) => (
                     Phaser.Math.Distance.Between(enemy.x, enemy.y, a.x, a.y)
                     - Phaser.Math.Distance.Between(enemy.x, enemy.y, b.x, b.y)
-                  ))[0];
-                if (ricochet) {
-                  damageEnemy(ricochet, player.damage * 0.8);
-                  drawFollowerStrike(enemy.x, enemy.y, ricochet, 0xe0b680);
-                }
+                ))[0];
+                if (ricochet) launchMonkeyStone(enemy.x, enemy.y, ricochet);
               }
               const burnLevel = player.mapSkillLevels.everglow ?? 0;
               if (burnLevel > 0 && !enemy.defeated && Math.random() < Math.min(0.6, burnLevel * 0.12)) {
@@ -1698,6 +1856,7 @@ function bootAsadalGame(container, options = {}) {
               health: 0,
               maxHealth: player.maxHealth,
               xp: player.xp,
+              gold: player.gold,
               level: player.level,
               stage,
               currentTribe: tribeNames[currentTribeIndex] + ' 부족',
@@ -1967,8 +2126,10 @@ function bootAsadalGame(container, options = {}) {
               const rageScale = enemy.tactic?.style === 'berserker' && enemy.health <= enemy.maxHealth * 0.45 ? 1.38 : 1;
               const poisonSlow = player.tribePowers.뱀 && enemy.poisonStacks >= 3 ? 0.75 : 1;
               const dogSlow = enemy.slowTimer > 0 ? 0.6 : 1;
+              const chargeSlow = enemy.chargeSlowTimer > 0 ? 0.7 : 1;
               enemy.slowTimer = Math.max(0, (enemy.slowTimer ?? 0) - delta);
-              const moveSpeed = enemy.speed * rageScale * poisonSlow * dogSlow * (delta / 1000);
+              enemy.chargeSlowTimer = Math.max(0, (enemy.chargeSlowTimer ?? 0) - delta);
+              const moveSpeed = enemy.speed * rageScale * poisonSlow * dogSlow * chargeSlow * (delta / 1000);
               enemy.x += Math.cos(angle) * moveSpeed;
               enemy.y += Math.sin(angle) * moveSpeed;
               enemyMoved = true;
@@ -2184,8 +2345,16 @@ function bootAsadalGame(container, options = {}) {
           pendingTravelStage = null;
           followers.forEach((follower) => follower.sprite?.destroy());
           followers.splice(0, followers.length);
-          powerSummons.forEach((summon) => summon.sprite?.destroy());
+          powerSummons.forEach((summon) => {
+            summon.sprite?.destroy();
+            summon.ring?.destroy();
+          });
           powerSummons.splice(0, powerSummons.length);
+          pickups.forEach((pickup) => {
+            pickup.sprite?.destroy();
+            pickup.ring?.destroy();
+          });
+          pickups.splice(0, pickups.length);
           player.damage *= 1 + player.trainingLevels.claw * 0.03;
           player.maxHealth *= 1 + player.trainingLevels.mountain * 0.04;
           player.health = player.maxHealth;
@@ -2212,6 +2381,9 @@ function bootAsadalGame(container, options = {}) {
           }
           clearedFinalBoss = false;
           applyAlliedSetupBonus();
+          const tigerLegacy = event.detail?.tigerLegacy;
+          if (tigerLegacy === 'power') applyTribePower('호랑이');
+          if (tigerLegacy === 'follower') recruitFollower('호랑이');
           window.__asadalTribeIndex = currentTribeIndex;
           enemies.forEach((enemy) => {
             destroyEnemyVisual(enemy);
@@ -2408,8 +2580,16 @@ function bootAsadalGame(container, options = {}) {
           enemies.splice(0, enemies.length);
           followers.forEach((follower) => follower.sprite?.destroy());
           followers.splice(0, followers.length);
-          powerSummons.forEach((summon) => summon.sprite?.destroy());
+          powerSummons.forEach((summon) => {
+            summon.sprite?.destroy();
+            summon.ring?.destroy();
+          });
           powerSummons.splice(0, powerSummons.length);
+          pickups.forEach((pickup) => {
+            pickup.sprite?.destroy();
+            pickup.ring?.destroy();
+          });
+          pickups.splice(0, pickups.length);
           projectiles.forEach((projectile) => projectile.orb?.destroy());
           projectiles.splice(0, projectiles.length);
           resetMovementInput();
@@ -2597,7 +2777,9 @@ function bootAsadalGame(container, options = {}) {
             playerAttackRing.setFillStyle(0xf8d8a0, ringAlpha);
 
             player.attackTimer += delta;
-            const powerAttackScale = player.powerState.roosterBuffTimer > 0 ? 0.8 : 1;
+            const roosterScale = player.powerState.roosterBuffTimer > 0 ? 0.8 : 1;
+            const followerSupportScale = player.powerState.followerHasteTimer > 0 ? 0.85 : 1;
+            const powerAttackScale = roosterScale * followerSupportScale;
             if (player.attackTimer >= player.attackRate * powerAttackScale * 1000) {
               handlePlayerAttack();
               player.attackTimer = 0;
@@ -2657,6 +2839,7 @@ function bootAsadalGame(container, options = {}) {
 
             updateTribePowers(delta, isMoving, movementAngle, movedDistance);
             updateFollowers(delta);
+            updatePickups(delta);
 
             if (
               stage < 6

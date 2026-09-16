@@ -55,13 +55,29 @@ const waitFor = async (expression, timeout = 30000) => {
 };
 
 const clickButton = async (label) => {
-  const clicked = await evaluate(`(() => { const button = [...document.querySelectorAll('button')].find((item) => item.textContent.includes(${JSON.stringify(label)})); if (!button) return false; button.click(); return true; })()`);
+  const clicked = await evaluate(`(() => { const buttons = [...document.querySelectorAll('button')]; const button = buttons.find((item) => item.textContent.trim() === ${JSON.stringify(label)}) || buttons.find((item) => item.textContent.includes(${JSON.stringify(label)})); if (!button) return false; button.click(); return true; })()`);
   if (!clicked) throw new Error(`Button not found: ${label}`);
 };
 
 await evaluate("localStorage.removeItem('asadal.meta.v1'); location.reload(); true");
 await waitFor("document.body.innerText.includes('새 출정')");
 runtimeErrors.length = 0;
+await evaluate(`(() => {
+  const meta = JSON.parse(localStorage.getItem('asadal.meta.v1'));
+  meta.tigerVictories = 3;
+  meta.selectedTigerLegacy = 'power';
+  localStorage.setItem('asadal.meta.v1', JSON.stringify(meta));
+  location.reload();
+  return true;
+})()`);
+await waitFor("[...document.querySelectorAll('button')].some((button) => button.textContent.trim() === '호랑이의 전승')");
+await clickButton('호랑이의 전승');
+await waitFor("document.body.innerText.includes('외눈 추적자') && document.body.innerText.includes('다음 출정 시작 시 적용')");
+await clickButton('외눈 추적자');
+await waitFor("JSON.parse(localStorage.getItem('asadal.meta.v1')).selectedTigerLegacy === 'follower'");
+const ratAssetReady = await evaluate("fetch('/assets/summon-baby-rat.png').then((response) => response.ok)");
+if (!ratAssetReady) throw new Error('The baby rat summon asset is missing');
+await clickButton('돌아가기');
 await clickButton('곰의 수련');
 await waitFor("document.body.innerText.includes('전체 회수')");
 await clickButton('1점 투자');
@@ -137,9 +153,9 @@ await waitFor("document.body.innerText.includes('전사들도 끝까지 맞서�
 await clickButton('그들의 선택을 받아들인다');
 await waitFor("document.querySelector('.reaction-panel') === null");
 
-await evaluate("window.dispatchEvent(new CustomEvent('asadal:tribeReward', { detail: { tribe: '돼지', power: { id: 'power', name: '풍요의 몫', description: '경험치 획득량 +15%. 경험치 40마다 최대 체력과 공격력이 성장합니다.' }, follower: { id: 'follower', name: '복주머니 짐꾼', description: '처치 보상 25회마다 웅의 공격력을 높이고 체력을 회복합니다.' } } })); true");
+await evaluate("window.dispatchEvent(new CustomEvent('asadal:tribeReward', { detail: { tribe: '돼지', power: { id: 'power', name: '풍요의 몫', description: '경험치와 골드 획득량 +15%. 경험치 40마다 최대 체력과 공격력이 성장합니다.' }, follower: { id: 'follower', name: '복주머니 짐꾼', description: '주변 경험치와 골드를 끌어당기고 정수 25개마다 공격력을 높입니다.' } } })); true");
 await waitFor("document.body.innerText.includes('다음 여정에 가져갈 힘')");
-await waitFor("document.body.innerText.includes('경험치 획득량 +15%') && document.body.innerText.includes('처치 보상 25회')");
+await waitFor("document.body.innerText.includes('경험치와 골드 획득량 +15%') && document.body.innerText.includes('정수 25개')");
 await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
 const rewardLayout = await evaluate(`(() => {
   const cards = [...document.querySelectorAll('.reward-grid .skill-card')];
@@ -178,6 +194,10 @@ await evaluate("window.dispatchEvent(new CustomEvent('asadal:finalDecision', { d
 await waitFor("[...document.querySelectorAll('button')].some((button) => button.textContent.includes('혼인 동맹') && !button.disabled)");
 await clickButton('혼인 동맹을 받아들인다');
 await waitFor("document.querySelector('.final-decision-panel') === null");
+
+await evaluate("window.__ratSummonTest = null; window.addEventListener('asadal:summonState', (event) => { window.__ratSummonTest = event.detail; }, { once: true }); true");
+await evaluate("window.dispatchEvent(new CustomEvent('asadal:chooseTribeReward', { detail: { choice: 'power', tribe: '쥐' } })); true");
+await waitFor("window.__ratSummonTest?.type === 'baby-rat' && window.__ratSummonTest?.texture === 'summon-baby-rat'");
 
 if (runtimeErrors.length > 0) throw new Error(`Browser runtime errors: ${JSON.stringify(runtimeErrors)}`);
 

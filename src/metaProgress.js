@@ -26,6 +26,12 @@ export const MEMORIES = [
   { id: 'tiger_child', name: '살아남은 호랑이 아이', description: '끝난 전쟁의 폐허에서 호왕의 마지막 아이가 살아남아 다음 이야기를 기다린다.' },
 ];
 
+export const TIGER_LEGACIES = [
+  { id: 'none', name: '전승 없음', description: '곰의 수련만 지니고 출정합니다.', requiredVictories: 0 },
+  { id: 'power', name: '포식자의 발톱', description: '보스 피해로 회복하고 보스를 쓰러뜨릴 때마다 공격력이 성장합니다.', requiredVictories: 1 },
+  { id: 'follower', name: '외눈 추적자', description: '체력이 높은 적과 빈사 상태의 적을 노리는 호랑이 부하와 출정합니다.', requiredVictories: 3 },
+];
+
 const emptyTraining = () => Object.fromEntries(TRAINING_ITEMS.map(({ id }) => [id, 0]));
 
 export const createInitialMeta = () => ({
@@ -37,6 +43,8 @@ export const createInitialMeta = () => ({
   runsStarted: 0,
   victories: 0,
   bossesDefeated: 0,
+  tigerVictories: 0,
+  selectedTigerLegacy: 'none',
 });
 
 export const trainingCost = (currentLevel) => Math.min(5, Math.max(0, currentLevel) + 1);
@@ -44,6 +52,9 @@ export const trainingCost = (currentLevel) => Math.min(5, Math.max(0, currentLev
 export function normalizeMeta(value) {
   const base = createInitialMeta();
   if (!value || typeof value !== 'object') return base;
+  const tigerVictories = Math.max(0, Math.floor(Number(value.tigerVictories ?? value.victories) || 0));
+  const requestedLegacy = TIGER_LEGACIES.find(({ id }) => id === value.selectedTigerLegacy) || TIGER_LEGACIES[0];
+  const selectedTigerLegacy = requestedLegacy.requiredVictories <= tigerVictories ? requestedLegacy.id : 'none';
   return {
     ...base,
     trainingPoints: Math.max(0, Number(value.trainingPoints) || 0),
@@ -56,7 +67,16 @@ export function normalizeMeta(value) {
     runsStarted: Math.max(0, Math.floor(Number(value.runsStarted) || 0)),
     victories: Math.max(0, Math.floor(Number(value.victories) || 0)),
     bossesDefeated: Math.max(0, Math.floor(Number(value.bossesDefeated) || 0)),
+    tigerVictories,
+    selectedTigerLegacy,
   };
+}
+
+export function selectTigerLegacy(meta, legacyId) {
+  const current = normalizeMeta(meta);
+  const legacy = TIGER_LEGACIES.find(({ id }) => id === legacyId);
+  if (!legacy || legacy.requiredVictories > current.tigerVictories) return current;
+  return { ...current, selectedTigerLegacy: legacy.id };
 }
 
 export function investTraining(meta, trainingId) {
@@ -111,6 +131,7 @@ export function rewardBoss(meta, isFinalBoss = false) {
     ...current,
     trainingPoints: current.trainingPoints + 1 + (isFinalBoss ? 3 : 0),
     bossesDefeated: current.bossesDefeated + 1,
+    tigerVictories: current.tigerVictories + (isFinalBoss ? 1 : 0),
   };
 }
 

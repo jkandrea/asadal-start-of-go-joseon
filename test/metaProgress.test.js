@@ -7,6 +7,7 @@ import {
   recordRunStart,
   refundTraining,
   rewardBoss,
+  selectTigerLegacy,
   unlockEnding,
   unlockMemory,
 } from '../src/metaProgress.js';
@@ -38,11 +39,25 @@ test('training uses escalating costs and can be fully refunded', () => {
 test('boss rewards persist and a new ending rewards only once', () => {
   let meta = rewardBoss(createInitialMeta(), true);
   assert.equal(meta.trainingPoints, 9);
+  assert.equal(meta.tigerVictories, 1);
   meta = unlockEnding(meta, 'asadal');
   assert.equal(meta.trainingPoints, 11);
   meta = unlockEnding(meta, 'asadal');
   assert.equal(meta.trainingPoints, 11);
   assert.deepEqual(meta.unlockedEndings, ['asadal']);
+});
+
+test('tiger legacies unlock after one and three final boss victories', () => {
+  let meta = createInitialMeta();
+  meta = selectTigerLegacy(meta, 'power');
+  assert.equal(meta.selectedTigerLegacy, 'none');
+  meta = rewardBoss(meta, true);
+  meta = selectTigerLegacy(meta, 'power');
+  assert.equal(meta.selectedTigerLegacy, 'power');
+  meta = rewardBoss(rewardBoss(meta, true), true);
+  meta = selectTigerLegacy(meta, 'follower');
+  assert.equal(meta.tigerVictories, 3);
+  assert.equal(meta.selectedTigerLegacy, 'follower');
 });
 
 test('journey memories unlock once and award persistent training points', () => {

@@ -4,6 +4,7 @@ import {
   ENDINGS,
   MEMORIES,
   META_STORAGE_KEY,
+  TIGER_LEGACIES,
   TRAINING_ITEMS,
   createInitialMeta,
   investTraining,
@@ -11,6 +12,7 @@ import {
   recordRunStart,
   refundTraining,
   rewardBoss,
+  selectTigerLegacy,
   trainingCost,
   unlockEnding,
   unlockMemory,
@@ -31,6 +33,7 @@ const initialHud = {
   maxHealth: 100,
   shield: 0,
   xp: 0,
+  gold: 0,
   level: 1,
   stage: 1,
   currentTribe: '곰 부족',
@@ -366,7 +369,11 @@ function App() {
     if (!gameReady) return;
     setShowTutorial(false);
     window.dispatchEvent(new CustomEvent('asadal:startRun', {
-      detail: { trainingLevels: meta.trainingLevels, runsStarted: meta.runsStarted },
+      detail: {
+        trainingLevels: meta.trainingLevels,
+        runsStarted: meta.runsStarted,
+        tigerLegacy: meta.selectedTigerLegacy,
+      },
     }));
   };
 
@@ -488,6 +495,10 @@ function App() {
               <span className="label">악명</span>
               <strong>{hud.reputation}</strong>
             </div>
+            <div className="hud-pill">
+              <span className="label">골드</span>
+              <strong>{Math.floor(hud.gold || 0)}</strong>
+            </div>
             <div className="hud-pill tribe-pill">
               <span className="label">현재 부족</span>
               <strong>{hud.currentTribe}</strong>
@@ -553,11 +564,17 @@ function App() {
                   <span><strong>{meta.unlockedEndings.length}/{ENDINGS.length}</strong> 엔딩</span>
                   <span><strong>{meta.unlockedMemories.length}/{MEMORIES.length}</strong> 기억</span>
                   <span><strong>{meta.runsStarted}</strong> 출정</span>
+                  <span><strong>{meta.tigerVictories}</strong> 호왕 격파</span>
                 </div>
                 <div className="menu-actions">
                   <button type="button" className="primary-action" onClick={startRun}>새 출정</button>
                   <button type="button" onClick={() => setMenuView('training')}>곰의 수련</button>
                   <button type="button" onClick={() => setMenuView('gallery')}>기억의 전당</button>
+                  {meta.tigerVictories > 0 && (
+                    <button type="button" className="legacy-action" onClick={() => setMenuView('legacy')}>
+                      호랑이의 전승
+                    </button>
+                  )}
                 </div>
                 {loadError && <p className="load-error" role="alert">{loadError}</p>}
               </div>
@@ -613,6 +630,48 @@ function App() {
               <div className="menu-footer-actions">
                 <button type="button" onClick={() => setMenuView('home')}>돌아가기</button>
                 <button type="button" onClick={() => setMeta((current) => refundTraining(current))}>전체 회수</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showIntro && menuView === 'legacy' && (
+          <div className="overlay menu-overlay">
+            <div className="panel-card meta-panel legacy-panel">
+              <div className="menu-heading">
+                <div>
+                  <p className="eyebrow">호왕 격파 · 회차 전승</p>
+                  <h2>호랑이의 전승</h2>
+                </div>
+                <span className="point-badge">호왕 {meta.tigerVictories}회 격파</span>
+              </div>
+              <p className="menu-description">
+                해금한 전승 중 하나를 고르면 다음 출정 시작 시 적용됩니다. 선택은 마을에서 언제든 바꿀 수 있습니다.
+              </p>
+              <div className="tiger-legacy-options">
+                {TIGER_LEGACIES.map((legacy) => {
+                  const unlocked = meta.tigerVictories >= legacy.requiredVictories;
+                  const selected = meta.selectedTigerLegacy === legacy.id;
+                  return (
+                    <button
+                      type="button"
+                      key={legacy.id}
+                      className={selected ? 'selected' : ''}
+                      disabled={!unlocked}
+                      title={unlocked ? legacy.description : `호왕 ${legacy.requiredVictories}회 격파 필요`}
+                      onClick={() => setMeta((current) => selectTigerLegacy(current, legacy.id))}
+                    >
+                      <span className="legacy-choice-heading">
+                        <strong>{legacy.name}</strong>
+                        <span>{selected ? '선택 중' : unlocked ? '선택 가능' : '잠김'}</span>
+                      </span>
+                      <small>{unlocked ? legacy.description : `호왕 ${legacy.requiredVictories}회 격파 필요`}</small>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="menu-footer-actions">
+                <button type="button" onClick={() => setMenuView('home')}>돌아가기</button>
               </div>
             </div>
           </div>
