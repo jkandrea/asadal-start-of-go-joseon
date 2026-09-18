@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">아사달</string>
+    <string name="title_activity_main">아사달</string>
+    <string name="package_name">com.asadal.game</string>
+    <string name="custom_url_scheme">com.asadal.game</string>
+</resources>

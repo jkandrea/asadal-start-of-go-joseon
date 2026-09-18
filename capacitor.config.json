@@ -1,0 +1,8 @@
+{
+  "appId": "com.asadal.game",
+  "appName": "아사달",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  }
+}
